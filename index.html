@@ -1,0 +1,1563 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AoA - Festival Layout Planner - Avenches</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        :root {
+            --sidebar-width: 320px;
+            --header-height: 50px;
+            --color-primary: #2c3e50;
+            --color-accent: #e74c3c;
+            --color-bg: #1a1a2e;
+            --color-panel: #16213e;
+            --color-card: #0f3460;
+            --color-text: #e0e0e0;
+            --color-text-light: #a0a0b0;
+            --color-border: #2a2a4a;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--color-bg);
+            color: var(--color-text);
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        /* ── Header ── */
+        #header {
+            height: var(--header-height);
+            background: var(--color-panel);
+            border-bottom: 1px solid var(--color-border);
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            gap: 16px;
+            z-index: 1000;
+        }
+
+        #header h1 {
+            font-size: 18px;
+            font-weight: 600;
+            color: #fff;
+            white-space: nowrap;
+        }
+
+        #header .subtitle {
+            font-size: 12px;
+            color: var(--color-text-light);
+        }
+
+        .header-actions {
+            margin-left: auto;
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn {
+            padding: 6px 14px;
+            border: 1px solid var(--color-border);
+            border-radius: 6px;
+            background: var(--color-card);
+            color: var(--color-text);
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+
+        .btn:hover {
+            background: #1a4a80;
+            border-color: #3a6aaa;
+        }
+
+        .btn-primary {
+            background: var(--color-accent);
+            border-color: var(--color-accent);
+            color: #fff;
+        }
+
+        .btn-primary:hover {
+            background: #c0392b;
+        }
+
+        .btn-danger {
+            background: #7f1d1d;
+            border-color: #991b1b;
+        }
+
+        .btn-danger:hover {
+            background: #991b1b;
+        }
+
+        /* ── Layout ── */
+        #app {
+            display: flex;
+            height: calc(100vh - var(--header-height));
+        }
+
+        /* ── Sidebar ── */
+        #sidebar {
+            width: var(--sidebar-width);
+            min-width: var(--sidebar-width);
+            background: var(--color-panel);
+            border-right: 1px solid var(--color-border);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .sidebar-tabs {
+            display: flex;
+            border-bottom: 1px solid var(--color-border);
+        }
+
+        .sidebar-tab {
+            flex: 1;
+            padding: 10px 8px;
+            text-align: center;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            background: transparent;
+            color: var(--color-text-light);
+            transition: all 0.2s;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .sidebar-tab.active {
+            color: #fff;
+            border-bottom: 2px solid var(--color-accent);
+            background: rgba(231, 76, 60, 0.1);
+        }
+
+        .sidebar-tab:hover {
+            color: #fff;
+        }
+
+        .sidebar-panel {
+            display: none;
+            flex: 1;
+            overflow-y: auto;
+            padding: 12px;
+        }
+
+        .sidebar-panel.active {
+            display: block;
+        }
+
+        /* ── Library ── */
+        .library-category {
+            margin-bottom: 16px;
+        }
+
+        .library-category h3 {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--color-text-light);
+            margin-bottom: 8px;
+            padding-bottom: 4px;
+            border-bottom: 1px solid var(--color-border);
+        }
+
+        .library-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px;
+        }
+
+        .library-item {
+            background: var(--color-card);
+            border: 1px solid var(--color-border);
+            border-radius: 8px;
+            padding: 10px 8px;
+            cursor: grab;
+            text-align: center;
+            transition: all 0.2s;
+            user-select: none;
+        }
+
+        .library-item:hover {
+            border-color: var(--color-accent);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(231, 76, 60, 0.2);
+        }
+
+        .library-item:active {
+            cursor: grabbing;
+        }
+
+        .library-item .icon {
+            font-size: 28px;
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        .library-item .label {
+            font-size: 11px;
+            font-weight: 500;
+        }
+
+        .library-item .dims {
+            font-size: 9px;
+            color: var(--color-text-light);
+            margin-top: 2px;
+        }
+
+        /* ── Properties panel ── */
+        .prop-group {
+            margin-bottom: 14px;
+        }
+
+        .prop-group label {
+            display: block;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--color-text-light);
+            margin-bottom: 4px;
+        }
+
+        .prop-group input,
+        .prop-group select,
+        .prop-group textarea {
+            width: 100%;
+            padding: 7px 10px;
+            border: 1px solid var(--color-border);
+            border-radius: 6px;
+            background: var(--color-bg);
+            color: var(--color-text);
+            font-size: 13px;
+        }
+
+        .prop-group input:focus,
+        .prop-group select:focus {
+            outline: none;
+            border-color: var(--color-accent);
+        }
+
+        .prop-row {
+            display: flex;
+            gap: 8px;
+        }
+
+        .prop-row .prop-group {
+            flex: 1;
+        }
+
+        .prop-color-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .prop-color-row input[type="color"] {
+            width: 36px;
+            height: 36px;
+            padding: 2px;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        .prop-color-row input[type="text"] {
+            flex: 1;
+        }
+
+        #no-selection-msg {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--color-text-light);
+            font-size: 13px;
+        }
+
+        /* ── Elements list panel ── */
+        .element-list-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 10px;
+            background: var(--color-card);
+            border: 1px solid var(--color-border);
+            border-radius: 6px;
+            margin-bottom: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.15s;
+        }
+
+        .element-list-item:hover {
+            border-color: var(--color-accent);
+        }
+
+        .element-list-item.selected {
+            border-color: var(--color-accent);
+            background: rgba(231, 76, 60, 0.15);
+        }
+
+        .element-list-item .el-icon {
+            font-size: 18px;
+        }
+
+        .element-list-item .el-name {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .element-list-item .el-delete {
+            color: var(--color-text-light);
+            cursor: pointer;
+            padding: 2px 4px;
+            border-radius: 3px;
+        }
+
+        .element-list-item .el-delete:hover {
+            color: var(--color-accent);
+            background: rgba(231, 76, 60, 0.2);
+        }
+
+        /* ── Map ── */
+        #map-container {
+            flex: 1;
+            position: relative;
+        }
+
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* ── Scale indicator ── */
+        .scale-info {
+            position: absolute;
+            bottom: 30px;
+            right: 10px;
+            background: rgba(22, 33, 62, 0.9);
+            color: var(--color-text);
+            padding: 6px 10px;
+            border-radius: 6px;
+            font-size: 11px;
+            z-index: 1000;
+            pointer-events: none;
+        }
+
+        /* ── Toolbar floating ── */
+        .map-toolbar {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 1000;
+            display: flex;
+            gap: 4px;
+            background: rgba(22, 33, 62, 0.95);
+            padding: 6px;
+            border-radius: 8px;
+            border: 1px solid var(--color-border);
+        }
+
+        .map-toolbar .btn {
+            padding: 6px 10px;
+            font-size: 16px;
+        }
+
+        /* ── Custom cursor for placement ── */
+        .placement-mode {
+            cursor: crosshair !important;
+        }
+
+        /* ── Resize handles on SVG overlay ── */
+        .resize-handle {
+            fill: #fff;
+            stroke: var(--color-accent);
+            stroke-width: 2;
+            cursor: nwse-resize;
+        }
+
+        .rotate-handle {
+            fill: var(--color-accent);
+            stroke: #fff;
+            stroke-width: 2;
+            cursor: grab;
+        }
+
+        /* ── Modal ── */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.6);
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal {
+            background: var(--color-panel);
+            border: 1px solid var(--color-border);
+            border-radius: 12px;
+            padding: 24px;
+            min-width: 400px;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .modal h2 {
+            font-size: 16px;
+            margin-bottom: 16px;
+        }
+
+        .modal textarea {
+            width: 100%;
+            min-height: 300px;
+            padding: 10px;
+            border: 1px solid var(--color-border);
+            border-radius: 6px;
+            background: var(--color-bg);
+            color: var(--color-text);
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            resize: vertical;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 16px;
+            justify-content: flex-end;
+        }
+
+        /* ── Drag ghost ── */
+        .drag-ghost {
+            position: fixed;
+            pointer-events: none;
+            z-index: 10000;
+            opacity: 0.7;
+            font-size: 40px;
+            transform: translate(-50%, -50%);
+        }
+
+        /* ── Scrollbar ── */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--color-bg);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--color-border);
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #4a4a6a;
+        }
+
+        /* ── Leaflet custom ── */
+        .leaflet-container {
+            background: #1a1a2e;
+        }
+
+        /* ── Info tooltip on map elements ── */
+        .element-tooltip {
+            background: rgba(22, 33, 62, 0.95) !important;
+            color: var(--color-text) !important;
+            border: 1px solid var(--color-border) !important;
+            border-radius: 6px !important;
+            padding: 6px 10px !important;
+            font-size: 12px !important;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3) !important;
+        }
+
+        .element-tooltip::before {
+            border-top-color: var(--color-border) !important;
+        }
+
+        /* ── Custom element definition modal ── */
+        .custom-form .prop-group {
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div id="header">
+        <h1>AoA - Festival Planner</h1>
+        <span class="subtitle">Avenches - Place du Casino</span>
+        <div class="header-actions">
+            <button class="btn" onclick="undoAction()" title="Annuler (Ctrl+Z)">&#8630; Annuler</button>
+            <button class="btn" onclick="redoAction()" title="Rétablir (Ctrl+Y)">&#8631; Rétablir</button>
+            <button class="btn" onclick="exportXML()">&#128190; Export XML</button>
+            <button class="btn" onclick="showImportModal()">&#128194; Import XML</button>
+            <button class="btn btn-primary" onclick="showCustomElementModal()">+ Élément custom</button>
+        </div>
+    </div>
+
+    <!-- App layout -->
+    <div id="app">
+        <!-- Sidebar -->
+        <div id="sidebar">
+            <div class="sidebar-tabs">
+                <button class="sidebar-tab active" onclick="switchTab('library')">Bibliothèque</button>
+                <button class="sidebar-tab" onclick="switchTab('properties')">Propriétés</button>
+                <button class="sidebar-tab" onclick="switchTab('elements')">Éléments</button>
+            </div>
+
+            <!-- Library panel -->
+            <div id="panel-library" class="sidebar-panel active"></div>
+
+            <!-- Properties panel -->
+            <div id="panel-properties" class="sidebar-panel">
+                <div id="no-selection-msg">
+                    Sélectionnez un élément sur la carte pour modifier ses propriétés.
+                </div>
+                <div id="props-form" style="display:none;">
+                    <div class="prop-group">
+                        <label>Nom</label>
+                        <input type="text" id="prop-name" oninput="updateProperty('name', this.value)">
+                    </div>
+                    <div class="prop-row">
+                        <div class="prop-group">
+                            <label>Largeur (m)</label>
+                            <input type="number" id="prop-width" step="0.5" min="0.5" oninput="updateProperty('width', parseFloat(this.value))">
+                        </div>
+                        <div class="prop-group">
+                            <label>Profondeur (m)</label>
+                            <input type="number" id="prop-height" step="0.5" min="0.5" oninput="updateProperty('height', parseFloat(this.value))">
+                        </div>
+                    </div>
+                    <div class="prop-group">
+                        <label>Rotation (°)</label>
+                        <input type="number" id="prop-rotation" step="5" min="0" max="360" oninput="updateProperty('rotation', parseFloat(this.value))">
+                    </div>
+                    <div class="prop-group">
+                        <label>Couleur</label>
+                        <div class="prop-color-row">
+                            <input type="color" id="prop-color" oninput="updateProperty('color', this.value)">
+                            <input type="text" id="prop-color-text" oninput="updateProperty('color', this.value)">
+                        </div>
+                    </div>
+                    <div class="prop-group">
+                        <label>Opacité</label>
+                        <input type="range" id="prop-opacity" min="0.1" max="1" step="0.1" oninput="updateProperty('opacity', parseFloat(this.value))">
+                    </div>
+                    <div class="prop-group">
+                        <label>Notes</label>
+                        <textarea id="prop-notes" rows="3" oninput="updateProperty('notes', this.value)"></textarea>
+                    </div>
+                    <div class="prop-group">
+                        <label>Latitude</label>
+                        <input type="text" id="prop-lat" readonly style="opacity: 0.6;">
+                    </div>
+                    <div class="prop-group">
+                        <label>Longitude</label>
+                        <input type="text" id="prop-lng" readonly style="opacity: 0.6;">
+                    </div>
+                    <button class="btn btn-danger" onclick="deleteSelected()" style="width:100%; margin-top: 12px;">Supprimer cet élément</button>
+                </div>
+            </div>
+
+            <!-- Elements list panel -->
+            <div id="panel-elements" class="sidebar-panel">
+                <div id="elements-list"></div>
+                <div id="no-elements-msg" style="text-align:center; padding:40px 20px; color:var(--color-text-light); font-size:13px;">
+                    Aucun élément placé sur la carte.
+                </div>
+            </div>
+        </div>
+
+        <!-- Map -->
+        <div id="map-container">
+            <div id="map"></div>
+            <div class="scale-info" id="scale-info">Échelle: --</div>
+        </div>
+    </div>
+
+    <!-- Import Modal -->
+    <div class="modal-overlay" id="import-modal">
+        <div class="modal">
+            <h2>Importer un plan XML</h2>
+            <textarea id="import-xml-content" placeholder="Collez votre XML ici ou utilisez le bouton ci-dessous pour charger un fichier..."></textarea>
+            <div style="margin-top: 8px;">
+                <input type="file" id="import-file" accept=".xml" onchange="loadXMLFile(event)" style="font-size: 12px; color: var(--color-text-light);">
+            </div>
+            <div class="modal-actions">
+                <button class="btn" onclick="closeImportModal()">Annuler</button>
+                <button class="btn btn-primary" onclick="importXML()">Importer</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Element Modal -->
+    <div class="modal-overlay" id="custom-element-modal">
+        <div class="modal">
+            <h2>Créer un élément personnalisé</h2>
+            <div class="custom-form">
+                <div class="prop-group">
+                    <label>Nom de l'élément</label>
+                    <input type="text" id="custom-name" placeholder="ex: Buvette VIP">
+                </div>
+                <div class="prop-group">
+                    <label>Catégorie</label>
+                    <select id="custom-category">
+                        <option value="structures">Structures</option>
+                        <option value="restauration">Restauration</option>
+                        <option value="securite">Sécurité</option>
+                        <option value="technique">Technique</option>
+                        <option value="divers">Divers</option>
+                    </select>
+                </div>
+                <div class="prop-group">
+                    <label>Icône (emoji)</label>
+                    <input type="text" id="custom-icon" placeholder="ex: 🎪" maxlength="4">
+                </div>
+                <div class="prop-row">
+                    <div class="prop-group">
+                        <label>Largeur par défaut (m)</label>
+                        <input type="number" id="custom-width" value="3" step="0.5" min="0.5">
+                    </div>
+                    <div class="prop-group">
+                        <label>Profondeur par défaut (m)</label>
+                        <input type="number" id="custom-height" value="3" step="0.5" min="0.5">
+                    </div>
+                </div>
+                <div class="prop-group">
+                    <label>Couleur par défaut</label>
+                    <input type="color" id="custom-color" value="#3498db">
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn" onclick="closeCustomElementModal()">Annuler</button>
+                <button class="btn btn-primary" onclick="addCustomElement()">Ajouter à la bibliothèque</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Drag ghost -->
+    <div class="drag-ghost" id="drag-ghost" style="display:none;"></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+    // ═══════════════════════════════════════════
+    //  CONFIGURATION
+    // ═══════════════════════════════════════════
+
+    const AVENCHES_CENTER = [46.88230, 7.04200];
+    const DEFAULT_ZOOM = 19;
+
+    // ═══════════════════════════════════════════
+    //  ELEMENT LIBRARY
+    // ═══════════════════════════════════════════
+
+    const elementLibrary = {
+        structures: {
+            label: "Structures",
+            items: [
+                { id: "scene_grande", name: "Grande scène", icon: "🎤", width: 16, height: 12, color: "#e74c3c" },
+                { id: "scene_petite", name: "Petite scène", icon: "🎵", width: 8, height: 6, color: "#e67e22" },
+                { id: "tente_6x3", name: "Tente 6x3m", icon: "⛺", width: 6, height: 3, color: "#f39c12" },
+                { id: "tente_6x6", name: "Tente 6x6m", icon: "🎪", width: 6, height: 6, color: "#f1c40f" },
+                { id: "tente_10x5", name: "Tente 10x5m", icon: "🏕️", width: 10, height: 5, color: "#d4ac0d" },
+                { id: "podium", name: "Podium", icon: "🏗️", width: 4, height: 4, color: "#cb4335" },
+            ]
+        },
+        restauration: {
+            label: "Restauration",
+            items: [
+                { id: "bar_grand", name: "Grand bar", icon: "🍺", width: 8, height: 3, color: "#3498db" },
+                { id: "bar_petit", name: "Petit bar", icon: "🍻", width: 4, height: 2, color: "#2980b9" },
+                { id: "food_stand", name: "Stand food", icon: "🍔", width: 4, height: 3, color: "#27ae60" },
+                { id: "food_truck", name: "Food truck", icon: "🚚", width: 6, height: 2.5, color: "#16a085" },
+                { id: "cuisine", name: "Cuisine", icon: "👨‍🍳", width: 5, height: 4, color: "#1abc9c" },
+                { id: "buvette", name: "Buvette", icon: "🥤", width: 3, height: 2, color: "#48c9b0" },
+            ]
+        },
+        securite: {
+            label: "Sécurité & Accès",
+            items: [
+                { id: "barriere_3m", name: "Barrière 3m", icon: "🚧", width: 3, height: 0.3, color: "#e74c3c" },
+                { id: "barriere_2m", name: "Barrière 2m", icon: "🚧", width: 2, height: 0.3, color: "#e74c3c" },
+                { id: "entree", name: "Entrée", icon: "🚪", width: 3, height: 1, color: "#2ecc71" },
+                { id: "sortie_secours", name: "Sortie secours", icon: "🚨", width: 3, height: 1, color: "#e74c3c" },
+                { id: "poste_secours", name: "Poste secours", icon: "⛑️", width: 4, height: 3, color: "#e74c3c" },
+                { id: "extincteur", name: "Extincteur", icon: "🧯", width: 0.5, height: 0.5, color: "#c0392b" },
+            ]
+        },
+        technique: {
+            label: "Technique",
+            items: [
+                { id: "regie_son", name: "Régie son", icon: "🎛️", width: 4, height: 3, color: "#8e44ad" },
+                { id: "generateur", name: "Générateur", icon: "⚡", width: 3, height: 2, color: "#f39c12" },
+                { id: "eclairage", name: "Tour éclairage", icon: "💡", width: 1, height: 1, color: "#f1c40f" },
+                { id: "cablage", name: "Chemin câbles", icon: "🔌", width: 10, height: 0.5, color: "#7f8c8d" },
+                { id: "stockage", name: "Container stock", icon: "📦", width: 6, height: 2.5, color: "#95a5a6" },
+                { id: "loge", name: "Loge artistes", icon: "⭐", width: 5, height: 4, color: "#9b59b6" },
+            ]
+        },
+        divers: {
+            label: "Divers",
+            items: [
+                { id: "wc", name: "Bloc WC", icon: "🚻", width: 3, height: 2, color: "#3498db" },
+                { id: "wc_pmr", name: "WC PMR", icon: "♿", width: 2, height: 2, color: "#2980b9" },
+                { id: "poubelle", name: "Point déchets", icon: "🗑️", width: 2, height: 1, color: "#27ae60" },
+                { id: "parking", name: "Zone parking", icon: "🅿️", width: 15, height: 10, color: "#7f8c8d" },
+                { id: "zone_vip", name: "Zone VIP", icon: "👑", width: 10, height: 8, color: "#9b59b6" },
+                { id: "info", name: "Point info", icon: "ℹ️", width: 2, height: 2, color: "#2c3e50" },
+            ]
+        }
+    };
+
+    // ═══════════════════════════════════════════
+    //  STATE
+    // ═══════════════════════════════════════════
+
+    let placedElements = [];
+    let selectedElementId = null;
+    let nextId = 1;
+    let undoStack = [];
+    let redoStack = [];
+    let dragSourceItem = null;
+
+    // ═══════════════════════════════════════════
+    //  MAP INITIALIZATION
+    // ═══════════════════════════════════════════
+
+    const map = L.map('map', {
+        center: AVENCHES_CENTER,
+        zoom: DEFAULT_ZOOM,
+        maxZoom: 22,
+        minZoom: 14,
+        zoomControl: false
+    });
+
+    L.control.zoom({ position: 'topright' }).addTo(map);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 22,
+        maxNativeZoom: 19,
+        attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    // Update scale display
+    function updateScaleInfo() {
+        const center = map.getCenter();
+        const zoom = map.getZoom();
+        const metersPerPixel = 156543.03392 * Math.cos(center.lat * Math.PI / 180) / Math.pow(2, zoom);
+        document.getElementById('scale-info').textContent = `Zoom: ${zoom} | ~${metersPerPixel.toFixed(2)} m/px`;
+    }
+    map.on('zoomend moveend', updateScaleInfo);
+    updateScaleInfo();
+
+    // ═══════════════════════════════════════════
+    //  UTILITY: meters to lat/lng offset
+    // ═══════════════════════════════════════════
+
+    function metersToLatLng(lat, meters) {
+        const latOffset = meters / 111320;
+        const lngOffset = meters / (111320 * Math.cos(lat * Math.PI / 180));
+        return { lat: latOffset, lng: lngOffset };
+    }
+
+    // ═══════════════════════════════════════════
+    //  BUILD LIBRARY UI
+    // ═══════════════════════════════════════════
+
+    function buildLibraryUI() {
+        const container = document.getElementById('panel-library');
+        container.innerHTML = '';
+
+        for (const [catKey, cat] of Object.entries(elementLibrary)) {
+            const section = document.createElement('div');
+            section.className = 'library-category';
+            section.innerHTML = `<h3>${cat.label}</h3>`;
+
+            const grid = document.createElement('div');
+            grid.className = 'library-grid';
+
+            cat.items.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'library-item';
+                div.draggable = true;
+                div.innerHTML = `
+                    <span class="icon">${item.icon}</span>
+                    <span class="label">${item.name}</span>
+                    <span class="dims">${item.width}m × ${item.height}m</span>
+                `;
+
+                div.addEventListener('dragstart', (e) => {
+                    dragSourceItem = item;
+                    e.dataTransfer.setData('text/plain', JSON.stringify(item));
+                    const ghost = document.getElementById('drag-ghost');
+                    ghost.textContent = item.icon;
+                    ghost.style.display = 'block';
+                    e.dataTransfer.setDragImage(ghost, 20, 20);
+                });
+
+                div.addEventListener('dragend', () => {
+                    dragSourceItem = null;
+                    document.getElementById('drag-ghost').style.display = 'none';
+                });
+
+                // Also support click-to-place
+                div.addEventListener('click', () => {
+                    startPlacementMode(item);
+                });
+
+                grid.appendChild(div);
+            });
+
+            section.appendChild(grid);
+            container.appendChild(section);
+        }
+    }
+
+    // ═══════════════════════════════════════════
+    //  PLACEMENT MODE (click on map to place)
+    // ═══════════════════════════════════════════
+
+    let placementItem = null;
+
+    function startPlacementMode(item) {
+        placementItem = item;
+        document.getElementById('map').classList.add('placement-mode');
+        map.once('click', (e) => {
+            placeElement(item, e.latlng);
+            document.getElementById('map').classList.remove('placement-mode');
+            placementItem = null;
+        });
+    }
+
+    // ═══════════════════════════════════════════
+    //  DRAG & DROP on map
+    // ═══════════════════════════════════════════
+
+    const mapEl = document.getElementById('map');
+    mapEl.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+    });
+
+    mapEl.addEventListener('drop', (e) => {
+        e.preventDefault();
+        if (!dragSourceItem) return;
+
+        const rect = mapEl.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        const latlng = map.containerPointToLatLng([x, y]);
+
+        placeElement(dragSourceItem, latlng);
+        dragSourceItem = null;
+    });
+
+    // ═══════════════════════════════════════════
+    //  PLACE ELEMENT
+    // ═══════════════════════════════════════════
+
+    function placeElement(item, latlng, restoreData) {
+        const id = restoreData ? restoreData.id : nextId++;
+        if (!restoreData && id >= nextId) nextId = id + 1;
+
+        const data = {
+            id: id,
+            typeId: item.id,
+            name: restoreData ? restoreData.name : item.name,
+            icon: item.icon,
+            width: restoreData ? restoreData.width : item.width,
+            height: restoreData ? restoreData.height : item.height,
+            color: restoreData ? restoreData.color : item.color,
+            opacity: restoreData ? (restoreData.opacity || 0.6) : 0.6,
+            rotation: restoreData ? (restoreData.rotation || 0) : 0,
+            lat: latlng.lat,
+            lng: latlng.lng,
+            notes: restoreData ? (restoreData.notes || '') : '',
+            layer: null,
+            labelMarker: null
+        };
+
+        createMapElement(data);
+        placedElements.push(data);
+
+        if (!restoreData) {
+            saveUndo();
+        }
+
+        refreshElementsList();
+        selectElement(data.id);
+    }
+
+    function createMapElement(data) {
+        // Remove old layer if exists
+        if (data.layer) {
+            map.removeLayer(data.layer);
+        }
+        if (data.labelMarker) {
+            map.removeLayer(data.labelMarker);
+        }
+
+        const bounds = getElementBounds(data);
+
+        // Create rectangle
+        const rect = L.rectangle(bounds, {
+            color: data.color,
+            fillColor: data.color,
+            fillOpacity: data.opacity,
+            weight: 2,
+            className: `element-rect-${data.id}`
+        });
+
+        // Apply rotation via CSS transform
+        rect.on('add', () => {
+            applyRotation(data);
+        });
+
+        rect.addTo(map);
+
+        // Tooltip
+        rect.bindTooltip(
+            `${data.icon} ${data.name}<br>${data.width}m × ${data.height}m`,
+            { className: 'element-tooltip', direction: 'top', offset: [0, -10] }
+        );
+
+        // Make draggable
+        let isDragging = false;
+        let dragStartLatLng = null;
+
+        rect.on('mousedown', (e) => {
+            if (e.originalEvent.button !== 0) return;
+            isDragging = true;
+            dragStartLatLng = e.latlng;
+            map.dragging.disable();
+            L.DomEvent.stopPropagation(e);
+            selectElement(data.id);
+        });
+
+        map.on('mousemove', (e) => {
+            if (!isDragging || !dragStartLatLng) return;
+            const dlat = e.latlng.lat - dragStartLatLng.lat;
+            const dlng = e.latlng.lng - dragStartLatLng.lng;
+            data.lat += dlat;
+            data.lng += dlng;
+            dragStartLatLng = e.latlng;
+            updateElementVisual(data);
+            updatePropsPanel();
+        });
+
+        map.on('mouseup', () => {
+            if (isDragging) {
+                isDragging = false;
+                dragStartLatLng = null;
+                map.dragging.enable();
+                saveUndo();
+            }
+        });
+
+        rect.on('click', (e) => {
+            L.DomEvent.stopPropagation(e);
+            selectElement(data.id);
+        });
+
+        data.layer = rect;
+
+        // Label marker
+        const labelIcon = L.divIcon({
+            className: 'element-label',
+            html: `<div style="
+                font-size: 22px;
+                text-align: center;
+                line-height: 1;
+                text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+                pointer-events: none;
+                transform: rotate(${data.rotation}deg);
+            ">${data.icon}</div>`,
+            iconSize: [30, 30],
+            iconAnchor: [15, 15]
+        });
+
+        data.labelMarker = L.marker([data.lat, data.lng], { icon: labelIcon, interactive: false }).addTo(map);
+    }
+
+    function getElementBounds(data) {
+        const offset = metersToLatLng(data.lat, 1);
+        const halfW = (data.width / 2) * offset.lng;
+        const halfH = (data.height / 2) * offset.lat;
+
+        return [
+            [data.lat - halfH, data.lng - halfW],
+            [data.lat + halfH, data.lng + halfW]
+        ];
+    }
+
+    function applyRotation(data) {
+        if (!data.layer || !data.layer._path) return;
+        const el = data.layer._path;
+        const bounds = getElementBounds(data);
+        const center = map.latLngToLayerPoint(L.latLng(data.lat, data.lng));
+        el.style.transformOrigin = `${center.x}px ${center.y}px`;
+        el.style.transform = `rotate(${data.rotation}deg)`;
+    }
+
+    function updateElementVisual(data) {
+        const bounds = getElementBounds(data);
+        if (data.layer) {
+            data.layer.setBounds(bounds);
+            data.layer.setStyle({
+                color: selectedElementId === data.id ? '#fff' : data.color,
+                fillColor: data.color,
+                fillOpacity: data.opacity,
+                weight: selectedElementId === data.id ? 3 : 2,
+                dashArray: selectedElementId === data.id ? '6 3' : null
+            });
+            // Update tooltip
+            data.layer.setTooltipContent(
+                `${data.icon} ${data.name}<br>${data.width}m × ${data.height}m`
+            );
+            // Rotation
+            setTimeout(() => applyRotation(data), 0);
+        }
+        if (data.labelMarker) {
+            data.labelMarker.setLatLng([data.lat, data.lng]);
+            const labelIcon = L.divIcon({
+                className: 'element-label',
+                html: `<div style="
+                    font-size: 22px;
+                    text-align: center;
+                    line-height: 1;
+                    text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+                    pointer-events: none;
+                    transform: rotate(${data.rotation}deg);
+                ">${data.icon}</div>`,
+                iconSize: [30, 30],
+                iconAnchor: [15, 15]
+            });
+            data.labelMarker.setIcon(labelIcon);
+        }
+    }
+
+    // ═══════════════════════════════════════════
+    //  SELECTION
+    // ═══════════════════════════════════════════
+
+    function selectElement(id) {
+        selectedElementId = id;
+        // Update visuals
+        placedElements.forEach(el => updateElementVisual(el));
+        updatePropsPanel();
+        refreshElementsList();
+        switchTab('properties');
+    }
+
+    function deselectAll() {
+        selectedElementId = null;
+        placedElements.forEach(el => updateElementVisual(el));
+        updatePropsPanel();
+        refreshElementsList();
+    }
+
+    map.on('click', () => {
+        if (!placementItem) {
+            deselectAll();
+        }
+    });
+
+    // ═══════════════════════════════════════════
+    //  PROPERTIES PANEL
+    // ═══════════════════════════════════════════
+
+    function updatePropsPanel() {
+        const form = document.getElementById('props-form');
+        const msg = document.getElementById('no-selection-msg');
+        const el = placedElements.find(e => e.id === selectedElementId);
+
+        if (!el) {
+            form.style.display = 'none';
+            msg.style.display = 'block';
+            return;
+        }
+
+        form.style.display = 'block';
+        msg.style.display = 'none';
+
+        document.getElementById('prop-name').value = el.name;
+        document.getElementById('prop-width').value = el.width;
+        document.getElementById('prop-height').value = el.height;
+        document.getElementById('prop-rotation').value = el.rotation;
+        document.getElementById('prop-color').value = el.color;
+        document.getElementById('prop-color-text').value = el.color;
+        document.getElementById('prop-opacity').value = el.opacity;
+        document.getElementById('prop-notes').value = el.notes || '';
+        document.getElementById('prop-lat').value = el.lat.toFixed(6);
+        document.getElementById('prop-lng').value = el.lng.toFixed(6);
+    }
+
+    function updateProperty(prop, value) {
+        const el = placedElements.find(e => e.id === selectedElementId);
+        if (!el) return;
+
+        if (prop === 'color') {
+            document.getElementById('prop-color').value = value;
+            document.getElementById('prop-color-text').value = value;
+        }
+
+        el[prop] = value;
+        updateElementVisual(el);
+        refreshElementsList();
+        saveUndo();
+    }
+
+    // ═══════════════════════════════════════════
+    //  DELETE
+    // ═══════════════════════════════════════════
+
+    function deleteSelected() {
+        const el = placedElements.find(e => e.id === selectedElementId);
+        if (!el) return;
+        deleteElement(el.id);
+    }
+
+    function deleteElement(id) {
+        const el = placedElements.find(e => e.id === id);
+        if (!el) return;
+
+        if (el.layer) map.removeLayer(el.layer);
+        if (el.labelMarker) map.removeLayer(el.labelMarker);
+
+        placedElements = placedElements.filter(e => e.id !== id);
+
+        if (selectedElementId === id) {
+            selectedElementId = null;
+            updatePropsPanel();
+        }
+
+        saveUndo();
+        refreshElementsList();
+    }
+
+    // ═══════════════════════════════════════════
+    //  ELEMENTS LIST
+    // ═══════════════════════════════════════════
+
+    function refreshElementsList() {
+        const list = document.getElementById('elements-list');
+        const msg = document.getElementById('no-elements-msg');
+
+        if (placedElements.length === 0) {
+            list.innerHTML = '';
+            msg.style.display = 'block';
+            return;
+        }
+
+        msg.style.display = 'none';
+        list.innerHTML = placedElements.map(el => `
+            <div class="element-list-item ${el.id === selectedElementId ? 'selected' : ''}"
+                 onclick="selectAndFocus(${el.id})">
+                <span class="el-icon">${el.icon}</span>
+                <span class="el-name">${el.name}</span>
+                <span class="el-delete" onclick="event.stopPropagation(); deleteElement(${el.id})" title="Supprimer">&#10005;</span>
+            </div>
+        `).join('');
+    }
+
+    function selectAndFocus(id) {
+        selectElement(id);
+        const el = placedElements.find(e => e.id === id);
+        if (el) {
+            map.panTo([el.lat, el.lng]);
+        }
+    }
+
+    // ═══════════════════════════════════════════
+    //  TABS
+    // ═══════════════════════════════════════════
+
+    function switchTab(tabName) {
+        document.querySelectorAll('.sidebar-tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.sidebar-panel').forEach(p => p.classList.remove('active'));
+
+        document.querySelector(`.sidebar-tab[onclick="switchTab('${tabName}')"]`).classList.add('active');
+        document.getElementById(`panel-${tabName}`).classList.add('active');
+    }
+
+    // ═══════════════════════════════════════════
+    //  UNDO / REDO
+    // ═══════════════════════════════════════════
+
+    function getState() {
+        return JSON.stringify(placedElements.map(el => ({
+            id: el.id,
+            typeId: el.typeId,
+            name: el.name,
+            icon: el.icon,
+            width: el.width,
+            height: el.height,
+            color: el.color,
+            opacity: el.opacity,
+            rotation: el.rotation,
+            lat: el.lat,
+            lng: el.lng,
+            notes: el.notes
+        })));
+    }
+
+    let lastState = null;
+
+    function saveUndo() {
+        const state = getState();
+        if (state === lastState) return;
+        undoStack.push(state);
+        if (undoStack.length > 50) undoStack.shift();
+        redoStack = [];
+        lastState = state;
+    }
+
+    function undoAction() {
+        if (undoStack.length < 2) return;
+        redoStack.push(undoStack.pop());
+        const state = undoStack[undoStack.length - 1];
+        restoreState(state);
+        lastState = state;
+    }
+
+    function redoAction() {
+        if (redoStack.length === 0) return;
+        const state = redoStack.pop();
+        undoStack.push(state);
+        restoreState(state);
+        lastState = state;
+    }
+
+    function restoreState(stateStr) {
+        // Clear all elements
+        placedElements.forEach(el => {
+            if (el.layer) map.removeLayer(el.layer);
+            if (el.labelMarker) map.removeLayer(el.labelMarker);
+        });
+        placedElements = [];
+        selectedElementId = null;
+
+        const items = JSON.parse(stateStr);
+        items.forEach(item => {
+            // Find library template
+            let template = null;
+            for (const cat of Object.values(elementLibrary)) {
+                template = cat.items.find(t => t.id === item.typeId);
+                if (template) break;
+            }
+            if (!template) {
+                template = { id: item.typeId, name: item.name, icon: item.icon, width: item.width, height: item.height, color: item.color };
+            }
+
+            placeElement(template, L.latLng(item.lat, item.lng), item);
+        });
+
+        refreshElementsList();
+        updatePropsPanel();
+    }
+
+    // ═══════════════════════════════════════════
+    //  EXPORT XML
+    // ═══════════════════════════════════════════
+
+    function exportXML() {
+        const now = new Date().toISOString();
+        let xml = `<?xml version="1.0" encoding="UTF-8"?>\n`;
+        xml += `<FestivalPlan>\n`;
+        xml += `  <Meta>\n`;
+        xml += `    <Name>Festival Avenches</Name>\n`;
+        xml += `    <Location>Place du Casino, Avenches</Location>\n`;
+        xml += `    <CenterLat>${AVENCHES_CENTER[0]}</CenterLat>\n`;
+        xml += `    <CenterLng>${AVENCHES_CENTER[1]}</CenterLng>\n`;
+        xml += `    <Zoom>${map.getZoom()}</Zoom>\n`;
+        xml += `    <ExportDate>${now}</ExportDate>\n`;
+        xml += `  </Meta>\n`;
+        xml += `  <Elements>\n`;
+
+        placedElements.forEach(el => {
+            xml += `    <Element>\n`;
+            xml += `      <Id>${el.id}</Id>\n`;
+            xml += `      <TypeId>${el.typeId}</TypeId>\n`;
+            xml += `      <Name>${escapeXml(el.name)}</Name>\n`;
+            xml += `      <Icon>${el.icon}</Icon>\n`;
+            xml += `      <Width>${el.width}</Width>\n`;
+            xml += `      <Height>${el.height}</Height>\n`;
+            xml += `      <Color>${el.color}</Color>\n`;
+            xml += `      <Opacity>${el.opacity}</Opacity>\n`;
+            xml += `      <Rotation>${el.rotation}</Rotation>\n`;
+            xml += `      <Lat>${el.lat}</Lat>\n`;
+            xml += `      <Lng>${el.lng}</Lng>\n`;
+            xml += `      <Notes>${escapeXml(el.notes || '')}</Notes>\n`;
+            xml += `    </Element>\n`;
+        });
+
+        xml += `  </Elements>\n`;
+
+        // Export custom library items
+        xml += `  <CustomLibrary>\n`;
+        for (const [catKey, cat] of Object.entries(elementLibrary)) {
+            cat.items.forEach(item => {
+                if (item.custom) {
+                    xml += `    <CustomItem>\n`;
+                    xml += `      <Category>${catKey}</Category>\n`;
+                    xml += `      <Id>${item.id}</Id>\n`;
+                    xml += `      <Name>${escapeXml(item.name)}</Name>\n`;
+                    xml += `      <Icon>${item.icon}</Icon>\n`;
+                    xml += `      <Width>${item.width}</Width>\n`;
+                    xml += `      <Height>${item.height}</Height>\n`;
+                    xml += `      <Color>${item.color}</Color>\n`;
+                    xml += `    </CustomItem>\n`;
+                }
+            });
+        }
+        xml += `  </CustomLibrary>\n`;
+        xml += `</FestivalPlan>`;
+
+        // Download
+        const blob = new Blob([xml], { type: 'application/xml' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `festival-avenches-${new Date().toISOString().slice(0, 10)}.xml`;
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+
+    function escapeXml(str) {
+        return str.replace(/&/g, '&amp;')
+                  .replace(/</g, '&lt;')
+                  .replace(/>/g, '&gt;')
+                  .replace(/"/g, '&quot;')
+                  .replace(/'/g, '&apos;');
+    }
+
+    // ═══════════════════════════════════════════
+    //  IMPORT XML
+    // ═══════════════════════════════════════════
+
+    function showImportModal() {
+        document.getElementById('import-modal').classList.add('active');
+        document.getElementById('import-xml-content').value = '';
+    }
+
+    function closeImportModal() {
+        document.getElementById('import-modal').classList.remove('active');
+    }
+
+    function loadXMLFile(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            document.getElementById('import-xml-content').value = e.target.result;
+        };
+        reader.readAsText(file);
+    }
+
+    function importXML() {
+        const xmlStr = document.getElementById('import-xml-content').value.trim();
+        if (!xmlStr) return alert('Veuillez coller ou charger du XML.');
+
+        try {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(xmlStr, 'application/xml');
+
+            const parseError = doc.querySelector('parsererror');
+            if (parseError) throw new Error('XML invalide');
+
+            // Clear current
+            placedElements.forEach(el => {
+                if (el.layer) map.removeLayer(el.layer);
+                if (el.labelMarker) map.removeLayer(el.labelMarker);
+            });
+            placedElements = [];
+            selectedElementId = null;
+            nextId = 1;
+
+            // Import custom library items first
+            const customItems = doc.querySelectorAll('CustomLibrary > CustomItem');
+            customItems.forEach(ci => {
+                const catKey = ci.querySelector('Category')?.textContent || 'divers';
+                const item = {
+                    id: ci.querySelector('Id')?.textContent || `custom_${Date.now()}`,
+                    name: ci.querySelector('Name')?.textContent || 'Custom',
+                    icon: ci.querySelector('Icon')?.textContent || '📦',
+                    width: parseFloat(ci.querySelector('Width')?.textContent || 3),
+                    height: parseFloat(ci.querySelector('Height')?.textContent || 3),
+                    color: ci.querySelector('Color')?.textContent || '#3498db',
+                    custom: true
+                };
+                if (elementLibrary[catKey]) {
+                    // Avoid duplicates
+                    if (!elementLibrary[catKey].items.find(i => i.id === item.id)) {
+                        elementLibrary[catKey].items.push(item);
+                    }
+                }
+            });
+            buildLibraryUI();
+
+            // Import elements
+            const elements = doc.querySelectorAll('Elements > Element');
+            elements.forEach(elem => {
+                const id = parseInt(elem.querySelector('Id')?.textContent || 0);
+                const typeId = elem.querySelector('TypeId')?.textContent || '';
+                const name = elem.querySelector('Name')?.textContent || 'Sans nom';
+                const icon = elem.querySelector('Icon')?.textContent || '📦';
+                const width = parseFloat(elem.querySelector('Width')?.textContent || 3);
+                const height = parseFloat(elem.querySelector('Height')?.textContent || 3);
+                const color = elem.querySelector('Color')?.textContent || '#3498db';
+                const opacity = parseFloat(elem.querySelector('Opacity')?.textContent || 0.6);
+                const rotation = parseFloat(elem.querySelector('Rotation')?.textContent || 0);
+                const lat = parseFloat(elem.querySelector('Lat')?.textContent || AVENCHES_CENTER[0]);
+                const lng = parseFloat(elem.querySelector('Lng')?.textContent || AVENCHES_CENTER[1]);
+                const notes = elem.querySelector('Notes')?.textContent || '';
+
+                const template = { id: typeId, name, icon, width, height, color };
+                const restoreData = { id, typeId, name, icon, width, height, color, opacity, rotation, notes };
+
+                placeElement(template, L.latLng(lat, lng), restoreData);
+                if (id >= nextId) nextId = id + 1;
+            });
+
+            // Set view from meta
+            const zoom = doc.querySelector('Meta > Zoom');
+            const centerLat = doc.querySelector('Meta > CenterLat');
+            const centerLng = doc.querySelector('Meta > CenterLng');
+            if (zoom && centerLat && centerLng) {
+                map.setView(
+                    [parseFloat(centerLat.textContent), parseFloat(centerLng.textContent)],
+                    parseInt(zoom.textContent)
+                );
+            }
+
+            undoStack = [getState()];
+            lastState = undoStack[0];
+
+            closeImportModal();
+            refreshElementsList();
+        } catch (err) {
+            alert('Erreur lors de l\'import: ' + err.message);
+        }
+    }
+
+    // ═══════════════════════════════════════════
+    //  CUSTOM ELEMENT
+    // ═══════════════════════════════════════════
+
+    function showCustomElementModal() {
+        document.getElementById('custom-element-modal').classList.add('active');
+        document.getElementById('custom-name').value = '';
+        document.getElementById('custom-icon').value = '';
+        document.getElementById('custom-width').value = 3;
+        document.getElementById('custom-height').value = 3;
+        document.getElementById('custom-color').value = '#3498db';
+    }
+
+    function closeCustomElementModal() {
+        document.getElementById('custom-element-modal').classList.remove('active');
+    }
+
+    function addCustomElement() {
+        const name = document.getElementById('custom-name').value.trim();
+        const icon = document.getElementById('custom-icon').value.trim() || '📦';
+        const width = parseFloat(document.getElementById('custom-width').value) || 3;
+        const height = parseFloat(document.getElementById('custom-height').value) || 3;
+        const color = document.getElementById('custom-color').value;
+        const category = document.getElementById('custom-category').value;
+
+        if (!name) return alert('Veuillez entrer un nom.');
+
+        const id = `custom_${Date.now()}`;
+        const item = { id, name, icon, width, height, color, custom: true };
+
+        if (elementLibrary[category]) {
+            elementLibrary[category].items.push(item);
+        }
+
+        buildLibraryUI();
+        closeCustomElementModal();
+    }
+
+    // ═══════════════════════════════════════════
+    //  KEYBOARD SHORTCUTS
+    // ═══════════════════════════════════════════
+
+    document.addEventListener('keydown', (e) => {
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+
+        if (e.key === 'Delete' || e.key === 'Backspace') {
+            if (selectedElementId !== null) {
+                deleteSelected();
+            }
+        }
+
+        if (e.ctrlKey && e.key === 'z') {
+            e.preventDefault();
+            undoAction();
+        }
+
+        if (e.ctrlKey && e.key === 'y') {
+            e.preventDefault();
+            redoAction();
+        }
+
+        if (e.key === 'Escape') {
+            deselectAll();
+            if (placementItem) {
+                document.getElementById('map').classList.remove('placement-mode');
+                placementItem = null;
+            }
+        }
+
+        // Rotate selected element
+        if (selectedElementId !== null) {
+            const el = placedElements.find(e => e.id === selectedElementId);
+            if (!el) return;
+
+            if (e.key === 'r' || e.key === 'R') {
+                el.rotation = (el.rotation + (e.shiftKey ? 1 : 15)) % 360;
+                updateElementVisual(el);
+                updatePropsPanel();
+                saveUndo();
+            }
+
+            // Nudge with arrow keys
+            const nudge = e.shiftKey ? 0.5 : 0.1; // meters
+            const off = metersToLatLng(el.lat, nudge);
+            if (e.key === 'ArrowUp') { e.preventDefault(); el.lat += off.lat; updateElementVisual(el); updatePropsPanel(); saveUndo(); }
+            if (e.key === 'ArrowDown') { e.preventDefault(); el.lat -= off.lat; updateElementVisual(el); updatePropsPanel(); saveUndo(); }
+            if (e.key === 'ArrowLeft') { e.preventDefault(); el.lng -= off.lng; updateElementVisual(el); updatePropsPanel(); saveUndo(); }
+            if (e.key === 'ArrowRight') { e.preventDefault(); el.lng += off.lng; updateElementVisual(el); updatePropsPanel(); saveUndo(); }
+        }
+    });
+
+    // ═══════════════════════════════════════════
+    //  INIT
+    // ═══════════════════════════════════════════
+
+    buildLibraryUI();
+    saveUndo(); // Initial empty state
+
+    </script>
+</body>
+</html>
