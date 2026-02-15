@@ -321,6 +321,32 @@
             margin-left: -6px !important; margin-top: -6px !important;
         }
 
+        /* ── Rotation & move handles ── */
+        .rotation-handle {
+            width: 24px !important; height: 24px !important;
+            background: var(--color-accent) !important;
+            border: 2px solid #fff !important;
+            border-radius: 50% !important;
+            cursor: grab !important;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.5) !important;
+            display: flex !important; align-items: center !important; justify-content: center !important;
+            font-size: 14px !important; line-height: 1 !important; color: #fff !important;
+            transition: transform 0.1s, background 0.2s !important;
+        }
+        .rotation-handle:hover { background: #c0392b !important; transform: scale(1.2) !important; }
+        .rotation-handle:active { cursor: grabbing !important; }
+        .move-handle {
+            width: 20px !important; height: 20px !important;
+            background: rgba(52, 152, 219, 0.9) !important;
+            border: 2px solid #fff !important;
+            border-radius: 4px !important;
+            cursor: move !important;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.4) !important;
+            display: flex !important; align-items: center !important; justify-content: center !important;
+            font-size: 12px !important; line-height: 1 !important; color: #fff !important;
+        }
+        .move-handle:hover { background: rgba(41, 128, 185, 1) !important; transform: scale(1.15) !important; }
+
         .measure-info {
             position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%);
             background: rgba(231, 76, 60, 0.95); color: #fff; padding: 8px 16px;
@@ -801,6 +827,11 @@
     let touchDragItem = null;
     let touchGhost = null;
 
+    // Selection handles state
+    let rotationHandleMarker = null;
+    let rotationHandleLine = null;
+    let moveHandleMarker = null;
+
     // ═══════════════════════════════════════════
     //  MOBILE NAVIGATION
     // ═══════════════════════════════════════════
@@ -878,6 +909,7 @@
     map.on('zoomend moveend', () => {
         updateScaleInfo();
         if (gridVisible) refreshGrid();
+        refreshSelectionHandles();
     });
     updateScaleInfo();
 
@@ -1382,6 +1414,167 @@
                 iconSize: [30, 30], iconAnchor: [15, 15]
             }));
         }
+        // Refresh selection handles if this is the selected element
+        if (data.id === selectedElementId) refreshSelectionHandles();
+    }
+
+    // ═══════════════════════════════════════════
+    //  SELECTION HANDLES (Rotation & Move)
+    // ═══════════════════════════════════════════
+
+    function getRotationHandlePos(data) {
+        const dist = Math.max(data.width, data.height) * 0.6 + 1.5;
+        const angleRad = (data.rotation - 90) * Math.PI / 180;
+        const off = metersToLatLng(data.lat, 1);
+        return L.latLng(
+            data.lat + dist * off.lat * Math.sin(-angleRad + Math.PI / 2),
+            data.lng + dist * off.lng * Math.cos(-angleRad + Math.PI / 2)
+        );
+    }
+
+    function showSelectionHandles(data) {
+        hideSelectionHandles();
+
+        // ── Rotation handle ──
+        const handlePos = getRotationHandlePos(data);
+
+        rotationHandleLine = L.polyline([[data.lat, data.lng], handlePos], {
+            color: '#fff', weight: 1.5, dashArray: '4 4', opacity: 0.7, interactive: false
+        }).addTo(map);
+
+        const rotIcon = L.divIcon({
+            className: 'rotation-handle',
+            html: '&#8635;',
+            iconSize: [24, 24],
+            iconAnchor: [12, 12]
+        });
+        rotationHandleMarker = L.marker(handlePos, {
+            icon: rotIcon, draggable: true, zIndexOffset: 10000
+        }).addTo(map);
+
+        rotationHandleMarker.on('drag', (e) => {
+            const handleLL = e.target.getLatLng();
+            const centerPt = map.latLngToContainerPoint([data.lat, data.lng]);
+            const handlePt = map.latLngToContainerPoint(handleLL);
+            const dx = handlePt.x - centerPt.x;
+            const dy = -(handlePt.y - centerPt.y);
+            let angle = Math.atan2(dx, dy) * 180 / Math.PI;
+            if (angle < 0) angle += 360;
+            if (snapEnabled) angle = Math.round(angle / 15) * 15;
+            data.rotation = Math.round(angle) % 360;
+            updateElementVisual(data);
+            updatePropsPanel();
+            rotationHandleLine.setLatLngs([[data.lat, data.lng], handleLL]);
+        });
+
+        rotationHandleMarker.on('dragend', () => {
+            const newPos = getRotationHandlePos(data);
+            rotationHandleMarker.setLatLng(newPos);
+            rotationHandleLine.setLatLngs([[data.lat, data.lng], newPos]);
+            saveUndo();
+        });
+
+        // Touch support for rotation handle
+        rotationHandleMarker.on('add', () => {
+            const el = rotationHandleMarker._icon;
+            if (!el) return;
+            let touchActive = false;
+            el.addEventListener('touchstart', (e) => {
+                touchActive = true;
+                map.dragging.disable();
+                e.stopPropagation();
+            }, { passive: true });
+            el.addEventListener('touchmove', (e) => {
+                if (!touchActive) return;
+                const t = e.touches[0];
+                const mapRect = document.getElementById('map').getBoundingClientRect();
+                const handlePt = { x: t.clientX - mapRect.left, y: t.clientY - mapRect.top };
+                const centerPt = map.latLngToContainerPoint([data.lat, data.lng]);
+                const dx = handlePt.x - centerPt.x;
+                const dy = -(handlePt.y - centerPt.y);
+                let angle = Math.atan2(dx, dy) * 180 / Math.PI;
+                if (angle < 0) angle += 360;
+                if (snapEnabled) angle = Math.round(angle / 15) * 15;
+                data.rotation = Math.round(angle) % 360;
+                updateElementVisual(data);
+                updatePropsPanel();
+                const handleLL = map.containerPointToLatLng([handlePt.x, handlePt.y]);
+                rotationHandleMarker.setLatLng(handleLL);
+                rotationHandleLine.setLatLngs([[data.lat, data.lng], handleLL]);
+                e.preventDefault();
+                e.stopPropagation();
+            }, { passive: false });
+            el.addEventListener('touchend', () => {
+                if (touchActive) {
+                    touchActive = false;
+                    map.dragging.enable();
+                    const newPos = getRotationHandlePos(data);
+                    rotationHandleMarker.setLatLng(newPos);
+                    rotationHandleLine.setLatLngs([[data.lat, data.lng], newPos]);
+                    saveUndo();
+                }
+            }, { passive: true });
+        });
+
+        // ── Move handle (center indicator) ──
+        const moveIcon = L.divIcon({
+            className: 'move-handle',
+            html: '&#10019;',
+            iconSize: [20, 20],
+            iconAnchor: [10, 10]
+        });
+        moveHandleMarker = L.marker([data.lat, data.lng], {
+            icon: moveIcon, draggable: true, zIndexOffset: 9999
+        }).addTo(map);
+
+        moveHandleMarker.on('drag', (e) => {
+            const newLL = e.target.getLatLng();
+            data.lat = newLL.lat;
+            data.lng = newLL.lng;
+            updateElementVisual(data);
+            updatePropsPanel();
+            // Update rotation handle position
+            if (rotationHandleLine) {
+                const rPos = getRotationHandlePos(data);
+                if (rotationHandleMarker) rotationHandleMarker.setLatLng(rPos);
+                rotationHandleLine.setLatLngs([[data.lat, data.lng], rPos]);
+            }
+        });
+
+        moveHandleMarker.on('dragend', () => {
+            if (snapEnabled) {
+                const s = snapToGrid(L.latLng(data.lat, data.lng));
+                data.lat = s.lat; data.lng = s.lng;
+                moveHandleMarker.setLatLng([data.lat, data.lng]);
+                updateElementVisual(data);
+                updatePropsPanel();
+                if (rotationHandleLine) {
+                    const rPos = getRotationHandlePos(data);
+                    if (rotationHandleMarker) rotationHandleMarker.setLatLng(rPos);
+                    rotationHandleLine.setLatLngs([[data.lat, data.lng], rPos]);
+                }
+            }
+            saveUndo();
+        });
+    }
+
+    function refreshSelectionHandles() {
+        const el = placedElements.find(e => e.id === selectedElementId);
+        if (!el) return;
+        if (rotationHandleMarker && rotationHandleLine) {
+            const rPos = getRotationHandlePos(el);
+            rotationHandleMarker.setLatLng(rPos);
+            rotationHandleLine.setLatLngs([[el.lat, el.lng], rPos]);
+        }
+        if (moveHandleMarker) {
+            moveHandleMarker.setLatLng([el.lat, el.lng]);
+        }
+    }
+
+    function hideSelectionHandles() {
+        if (rotationHandleMarker) { map.removeLayer(rotationHandleMarker); rotationHandleMarker = null; }
+        if (rotationHandleLine) { map.removeLayer(rotationHandleLine); rotationHandleLine = null; }
+        if (moveHandleMarker) { map.removeLayer(moveHandleMarker); moveHandleMarker = null; }
     }
 
     // ═══════════════════════════════════════════
@@ -1393,11 +1586,14 @@
         placedElements.forEach(el => updateElementVisual(el));
         updatePropsPanel();
         refreshElementsList();
+        const el = placedElements.find(e => e.id === id);
+        if (el) showSelectionHandles(el);
         if (!isMobile()) switchTab('properties');
     }
 
     function deselectAll() {
         selectedElementId = null;
+        hideSelectionHandles();
         placedElements.forEach(el => updateElementVisual(el));
         updatePropsPanel();
         refreshElementsList();
@@ -1451,7 +1647,7 @@
         if (el.layer) map.removeLayer(el.layer);
         if (el.labelMarker) map.removeLayer(el.labelMarker);
         placedElements = placedElements.filter(e => e.id !== id);
-        if (selectedElementId === id) { selectedElementId = null; updatePropsPanel(); }
+        if (selectedElementId === id) { selectedElementId = null; hideSelectionHandles(); updatePropsPanel(); }
         saveUndo();
         refreshElementsList();
     }
@@ -1521,6 +1717,7 @@
     function redoAction() { if (!redoStack.length) return; const s = redoStack.pop(); undoStack.push(s); restoreState(s); lastState = s; }
 
     function restoreState(stateStr) {
+        hideSelectionHandles();
         placedElements.forEach(el => { if (el.layer) map.removeLayer(el.layer); if (el.labelMarker) map.removeLayer(el.labelMarker); });
         placedElements = []; selectedElementId = null;
         JSON.parse(stateStr).forEach(item => {
