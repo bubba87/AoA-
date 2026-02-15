@@ -2,13 +2,17 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#16213e">
     <title>AoA - Festival Layout Planner - Avenches</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         :root {
             --sidebar-width: 320px;
             --header-height: 50px;
+            --bottombar-height: 56px;
             --color-primary: #2c3e50;
             --color-accent: #e74c3c;
             --color-bg: #1a1a2e;
@@ -17,13 +21,10 @@
             --color-text: #e0e0e0;
             --color-text-light: #a0a0b0;
             --color-border: #2a2a4a;
+            --safe-bottom: env(safe-area-inset-bottom, 0px);
         }
 
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -31,6 +32,8 @@
             color: var(--color-text);
             overflow: hidden;
             height: 100vh;
+            height: 100dvh;
+            -webkit-tap-highlight-color: transparent;
         }
 
         /* ── Header ── */
@@ -40,32 +43,56 @@
             border-bottom: 1px solid var(--color-border);
             display: flex;
             align-items: center;
-            padding: 0 20px;
-            gap: 16px;
-            z-index: 1000;
+            padding: 0 12px 0 16px;
+            gap: 12px;
+            z-index: 1100;
+            position: relative;
         }
 
-        #header h1 {
-            font-size: 18px;
-            font-weight: 600;
-            color: #fff;
-            white-space: nowrap;
-        }
-
-        #header .subtitle {
-            font-size: 12px;
-            color: var(--color-text-light);
-        }
+        #header h1 { font-size: 18px; font-weight: 600; color: #fff; white-space: nowrap; }
+        #header .subtitle { font-size: 12px; color: var(--color-text-light); white-space: nowrap; }
 
         .header-actions {
             margin-left: auto;
             display: flex;
             gap: 8px;
             flex-wrap: wrap;
+            align-items: center;
         }
 
+        /* Hamburger (mobile only) */
+        .hamburger {
+            display: none;
+            background: none;
+            border: none;
+            color: #fff;
+            font-size: 24px;
+            cursor: pointer;
+            padding: 4px 8px;
+            margin-left: auto;
+        }
+
+        /* Header dropdown menu (mobile) */
+        .header-dropdown {
+            display: none;
+            position: absolute;
+            top: var(--header-height);
+            right: 8px;
+            background: var(--color-panel);
+            border: 1px solid var(--color-border);
+            border-radius: 0 0 10px 10px;
+            padding: 8px;
+            z-index: 1200;
+            gap: 6px;
+            flex-direction: column;
+            min-width: 200px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+        }
+        .header-dropdown.open { display: flex; }
+        .header-dropdown .btn { width: 100%; text-align: left; }
+
         .btn {
-            padding: 6px 14px;
+            padding: 8px 14px;
             border: 1px solid var(--color-border);
             border-radius: 6px;
             background: var(--color-card);
@@ -75,50 +102,21 @@
             transition: all 0.2s;
             white-space: nowrap;
         }
-
-        .btn:hover {
-            background: #1a4a80;
-            border-color: #3a6aaa;
-        }
-
-        .btn-primary {
-            background: var(--color-accent);
-            border-color: var(--color-accent);
-            color: #fff;
-        }
-
-        .btn-primary:hover {
-            background: #c0392b;
-        }
-
-        .btn-danger {
-            background: #7f1d1d;
-            border-color: #991b1b;
-        }
-
-        .btn-danger:hover {
-            background: #991b1b;
-        }
-
-        .btn.active {
-            background: var(--color-accent);
-            border-color: var(--color-accent);
-            color: #fff;
-        }
-
-        .btn-success {
-            background: #166534;
-            border-color: #16a34a;
-        }
-
-        .btn-success:hover {
-            background: #15803d;
-        }
+        .btn:hover { background: #1a4a80; border-color: #3a6aaa; }
+        .btn:active { transform: scale(0.97); }
+        .btn-primary { background: var(--color-accent); border-color: var(--color-accent); color: #fff; }
+        .btn-primary:hover { background: #c0392b; }
+        .btn-danger { background: #7f1d1d; border-color: #991b1b; }
+        .btn-danger:hover { background: #991b1b; }
+        .btn.active { background: var(--color-accent); border-color: var(--color-accent); color: #fff; }
+        .btn-success { background: #166534; border-color: #16a34a; }
+        .btn-success:hover { background: #15803d; }
 
         /* ── Layout ── */
         #app {
             display: flex;
             height: calc(100vh - var(--header-height));
+            height: calc(100dvh - var(--header-height));
         }
 
         /* ── Sidebar ── */
@@ -130,11 +128,13 @@
             display: flex;
             flex-direction: column;
             overflow: hidden;
+            z-index: 1050;
         }
 
         .sidebar-tabs {
             display: flex;
             border-bottom: 1px solid var(--color-border);
+            flex-shrink: 0;
         }
 
         .sidebar-tab {
@@ -151,48 +151,31 @@
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
+        .sidebar-tab.active { color: #fff; border-bottom: 2px solid var(--color-accent); background: rgba(231, 76, 60, 0.1); }
+        .sidebar-tab:hover { color: #fff; }
 
-        .sidebar-tab.active {
-            color: #fff;
-            border-bottom: 2px solid var(--color-accent);
-            background: rgba(231, 76, 60, 0.1);
-        }
+        .sidebar-panel { display: none; flex: 1; overflow-y: auto; padding: 12px; -webkit-overflow-scrolling: touch; }
+        .sidebar-panel.active { display: block; }
 
-        .sidebar-tab:hover {
-            color: #fff;
-        }
-
-        .sidebar-panel {
+        /* ── Sidebar overlay backdrop (mobile) ── */
+        .sidebar-backdrop {
             display: none;
-            flex: 1;
-            overflow-y: auto;
-            padding: 12px;
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1040;
         }
-
-        .sidebar-panel.active {
-            display: block;
-        }
+        .sidebar-backdrop.visible { display: block; }
 
         /* ── Library ── */
-        .library-category {
-            margin-bottom: 16px;
-        }
-
+        .library-category { margin-bottom: 16px; }
         .library-category h3 {
-            font-size: 11px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            color: var(--color-text-light);
-            margin-bottom: 8px;
-            padding-bottom: 4px;
+            font-size: 11px; text-transform: uppercase; letter-spacing: 1px;
+            color: var(--color-text-light); margin-bottom: 8px; padding-bottom: 4px;
             border-bottom: 1px solid var(--color-border);
         }
-
-        .library-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 6px;
-        }
+        .library-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 
         .library-item {
             background: var(--color-card);
@@ -203,409 +186,271 @@
             text-align: center;
             transition: all 0.2s;
             user-select: none;
+            -webkit-user-select: none;
         }
-
-        .library-item:hover {
-            border-color: var(--color-accent);
-            transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(231, 76, 60, 0.2);
-        }
-
-        .library-item:active {
-            cursor: grabbing;
-        }
-
-        .library-item .icon {
-            font-size: 28px;
-            display: block;
-            margin-bottom: 4px;
-        }
-
-        .library-item .label {
-            font-size: 11px;
-            font-weight: 500;
-        }
-
-        .library-item .dims {
-            font-size: 9px;
-            color: var(--color-text-light);
-            margin-top: 2px;
-        }
+        .library-item:hover { border-color: var(--color-accent); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(231, 76, 60, 0.2); }
+        .library-item:active { cursor: grabbing; transform: scale(0.96); }
+        .library-item .icon { font-size: 28px; display: block; margin-bottom: 4px; }
+        .library-item .label { font-size: 11px; font-weight: 500; }
+        .library-item .dims { font-size: 9px; color: var(--color-text-light); margin-top: 2px; }
 
         /* ── Properties panel ── */
-        .prop-group {
-            margin-bottom: 14px;
-        }
-
+        .prop-group { margin-bottom: 14px; }
         .prop-group label {
-            display: block;
-            font-size: 11px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            color: var(--color-text-light);
-            margin-bottom: 4px;
+            display: block; font-size: 11px; text-transform: uppercase;
+            letter-spacing: 0.5px; color: var(--color-text-light); margin-bottom: 4px;
         }
+        .prop-group input, .prop-group select, .prop-group textarea {
+            width: 100%; padding: 8px 10px; border: 1px solid var(--color-border);
+            border-radius: 6px; background: var(--color-bg); color: var(--color-text);
+            font-size: 16px; /* prevent iOS zoom */
+        }
+        .prop-group input:focus, .prop-group select:focus { outline: none; border-color: var(--color-accent); }
+        .prop-row { display: flex; gap: 8px; }
+        .prop-row .prop-group { flex: 1; }
+        .prop-color-row { display: flex; align-items: center; gap: 8px; }
+        .prop-color-row input[type="color"] { width: 44px; height: 44px; padding: 2px; border-radius: 6px; cursor: pointer; }
+        .prop-color-row input[type="text"] { flex: 1; }
 
-        .prop-group input,
-        .prop-group select,
-        .prop-group textarea {
-            width: 100%;
-            padding: 7px 10px;
-            border: 1px solid var(--color-border);
-            border-radius: 6px;
-            background: var(--color-bg);
-            color: var(--color-text);
-            font-size: 13px;
-        }
-
-        .prop-group input:focus,
-        .prop-group select:focus {
-            outline: none;
-            border-color: var(--color-accent);
-        }
-
-        .prop-row {
-            display: flex;
-            gap: 8px;
-        }
-
-        .prop-row .prop-group {
-            flex: 1;
-        }
-
-        .prop-color-row {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .prop-color-row input[type="color"] {
-            width: 36px;
-            height: 36px;
-            padding: 2px;
-            border-radius: 6px;
-            cursor: pointer;
-        }
-
-        .prop-color-row input[type="text"] {
-            flex: 1;
-        }
-
-        #no-selection-msg {
-            text-align: center;
-            padding: 40px 20px;
-            color: var(--color-text-light);
-            font-size: 13px;
-        }
+        #no-selection-msg { text-align: center; padding: 40px 20px; color: var(--color-text-light); font-size: 13px; }
 
         /* ── Elements list panel ── */
         .element-list-item {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 8px 10px;
-            background: var(--color-card);
-            border: 1px solid var(--color-border);
-            border-radius: 6px;
-            margin-bottom: 4px;
-            cursor: pointer;
-            font-size: 12px;
-            transition: all 0.15s;
+            display: flex; align-items: center; gap: 8px; padding: 10px;
+            background: var(--color-card); border: 1px solid var(--color-border);
+            border-radius: 6px; margin-bottom: 4px; cursor: pointer;
+            font-size: 13px; transition: all 0.15s;
         }
-
-        .element-list-item:hover {
-            border-color: var(--color-accent);
-        }
-
-        .element-list-item.selected {
-            border-color: var(--color-accent);
-            background: rgba(231, 76, 60, 0.15);
-        }
-
-        .element-list-item .el-icon {
-            font-size: 18px;
-        }
-
-        .element-list-item .el-name {
-            flex: 1;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-
+        .element-list-item:hover { border-color: var(--color-accent); }
+        .element-list-item.selected { border-color: var(--color-accent); background: rgba(231, 76, 60, 0.15); }
+        .element-list-item .el-icon { font-size: 20px; }
+        .element-list-item .el-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .element-list-item .el-delete {
-            color: var(--color-text-light);
-            cursor: pointer;
-            padding: 2px 4px;
-            border-radius: 3px;
+            color: var(--color-text-light); cursor: pointer; padding: 6px 8px; border-radius: 4px;
+            font-size: 16px; min-width: 32px; text-align: center;
         }
-
-        .element-list-item .el-delete:hover {
-            color: var(--color-accent);
-            background: rgba(231, 76, 60, 0.2);
-        }
+        .element-list-item .el-delete:hover { color: var(--color-accent); background: rgba(231, 76, 60, 0.2); }
 
         /* ── Map ── */
-        #map-container {
-            flex: 1;
-            position: relative;
-        }
+        #map-container { flex: 1; position: relative; min-width: 0; }
+        #map { width: 100%; height: 100%; }
 
-        #map {
-            width: 100%;
-            height: 100%;
-        }
-
-        /* ── Scale indicator ── */
         .scale-info {
-            position: absolute;
-            bottom: 30px;
-            right: 10px;
-            background: rgba(22, 33, 62, 0.9);
-            color: var(--color-text);
-            padding: 6px 10px;
-            border-radius: 6px;
-            font-size: 11px;
-            z-index: 1000;
-            pointer-events: none;
+            position: absolute; bottom: 10px; right: 10px;
+            background: rgba(22, 33, 62, 0.9); color: var(--color-text);
+            padding: 6px 10px; border-radius: 6px; font-size: 11px;
+            z-index: 1000; pointer-events: none;
         }
 
         /* ── Map toolbar ── */
         .map-toolbar {
-            position: absolute;
-            top: 10px;
-            left: 10px;
-            z-index: 1000;
-            display: flex;
-            gap: 4px;
+            position: absolute; top: 10px; left: 10px; z-index: 1000;
+            display: flex; gap: 4px;
             background: rgba(22, 33, 62, 0.95);
-            padding: 6px;
-            border-radius: 8px;
+            padding: 6px; border-radius: 8px;
             border: 1px solid var(--color-border);
             align-items: center;
         }
-
-        .map-toolbar .btn {
-            padding: 6px 10px;
-            font-size: 14px;
-        }
-
-        .map-toolbar .separator {
-            width: 1px;
-            height: 24px;
-            background: var(--color-border);
-            margin: 0 4px;
-        }
-
+        .map-toolbar .btn { padding: 6px 10px; font-size: 14px; }
+        .map-toolbar .separator { width: 1px; height: 24px; background: var(--color-border); margin: 0 4px; }
         .map-toolbar select {
-            padding: 5px 8px;
-            border: 1px solid var(--color-border);
-            border-radius: 6px;
-            background: var(--color-card);
-            color: var(--color-text);
-            font-size: 12px;
-            cursor: pointer;
+            padding: 5px 8px; border: 1px solid var(--color-border);
+            border-radius: 6px; background: var(--color-card); color: var(--color-text);
+            font-size: 12px; cursor: pointer;
         }
 
-        .map-toolbar label {
-            font-size: 11px;
-            color: var(--color-text-light);
-        }
-
-        /* ── Custom cursor for placement ── */
-        .placement-mode {
-            cursor: crosshair !important;
-        }
-
-        .measure-mode {
-            cursor: crosshair !important;
-        }
+        .placement-mode, .measure-mode { cursor: crosshair !important; }
 
         /* ── Modal ── */
         .modal-overlay {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.6);
-            z-index: 9999;
-            justify-content: center;
-            align-items: center;
+            display: none; position: fixed; top: 0; left: 0;
+            width: 100%; height: 100%; background: rgba(0, 0, 0, 0.6);
+            z-index: 9999; justify-content: center; align-items: center;
+            padding: 16px;
         }
-
-        .modal-overlay.active {
-            display: flex;
-        }
-
+        .modal-overlay.active { display: flex; }
         .modal {
-            background: var(--color-panel);
-            border: 1px solid var(--color-border);
-            border-radius: 12px;
-            padding: 24px;
-            min-width: 400px;
-            max-width: 600px;
-            max-height: 80vh;
-            overflow-y: auto;
+            background: var(--color-panel); border: 1px solid var(--color-border);
+            border-radius: 12px; padding: 24px;
+            width: 100%; max-width: 500px; max-height: 85vh;
+            overflow-y: auto; -webkit-overflow-scrolling: touch;
         }
-
-        .modal h2 {
-            font-size: 16px;
-            margin-bottom: 16px;
-        }
-
+        .modal h2 { font-size: 16px; margin-bottom: 16px; }
         .modal textarea {
-            width: 100%;
-            min-height: 300px;
-            padding: 10px;
-            border: 1px solid var(--color-border);
-            border-radius: 6px;
-            background: var(--color-bg);
-            color: var(--color-text);
-            font-family: 'Courier New', monospace;
-            font-size: 12px;
-            resize: vertical;
+            width: 100%; min-height: 200px; padding: 10px;
+            border: 1px solid var(--color-border); border-radius: 6px;
+            background: var(--color-bg); color: var(--color-text);
+            font-family: 'Courier New', monospace; font-size: 13px; resize: vertical;
         }
-
-        .modal-actions {
-            display: flex;
-            gap: 8px;
-            margin-top: 16px;
-            justify-content: flex-end;
-        }
+        .modal-actions { display: flex; gap: 8px; margin-top: 16px; justify-content: flex-end; }
+        .custom-form .prop-group { margin-bottom: 10px; }
 
         /* ── Drag ghost ── */
         .drag-ghost {
-            position: fixed;
-            pointer-events: none;
-            z-index: 10000;
-            opacity: 0.7;
-            font-size: 40px;
-            transform: translate(-50%, -50%);
+            position: fixed; pointer-events: none; z-index: 10000;
+            opacity: 0.7; font-size: 40px; transform: translate(-50%, -50%);
         }
 
         /* ── Scrollbar ── */
-        ::-webkit-scrollbar {
-            width: 6px;
-        }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: var(--color-bg); }
+        ::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 3px; }
 
-        ::-webkit-scrollbar-track {
-            background: var(--color-bg);
-        }
+        /* ── Leaflet ── */
+        .leaflet-container { background: #1a1a2e; }
 
-        ::-webkit-scrollbar-thumb {
-            background: var(--color-border);
-            border-radius: 3px;
-        }
-
-        ::-webkit-scrollbar-thumb:hover {
-            background: #4a4a6a;
-        }
-
-        /* ── Leaflet custom ── */
-        .leaflet-container {
-            background: #1a1a2e;
-        }
-
-        /* ── Info tooltip on map elements ── */
         .element-tooltip {
-            background: rgba(22, 33, 62, 0.95) !important;
-            color: var(--color-text) !important;
-            border: 1px solid var(--color-border) !important;
-            border-radius: 6px !important;
-            padding: 6px 10px !important;
-            font-size: 12px !important;
+            background: rgba(22, 33, 62, 0.95) !important; color: var(--color-text) !important;
+            border: 1px solid var(--color-border) !important; border-radius: 6px !important;
+            padding: 6px 10px !important; font-size: 12px !important;
             box-shadow: 0 4px 12px rgba(0,0,0,0.3) !important;
         }
+        .element-tooltip::before { border-top-color: var(--color-border) !important; }
 
-        .element-tooltip::before {
-            border-top-color: var(--color-border) !important;
-        }
-
-        /* ── Custom element definition modal ── */
-        .custom-form .prop-group {
-            margin-bottom: 10px;
-        }
-
-        /* ── Measurement styles ── */
+        /* ── Measurement ── */
         .measure-label {
-            background: rgba(231, 76, 60, 0.9) !important;
-            color: #fff !important;
-            border: none !important;
-            border-radius: 4px !important;
-            padding: 3px 8px !important;
-            font-size: 12px !important;
-            font-weight: 600 !important;
-            white-space: nowrap !important;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.4) !important;
+            background: rgba(231, 76, 60, 0.9) !important; color: #fff !important;
+            border: none !important; border-radius: 4px !important; padding: 3px 8px !important;
+            font-size: 12px !important; font-weight: 600 !important;
+            white-space: nowrap !important; box-shadow: 0 2px 8px rgba(0,0,0,0.4) !important;
         }
-
-        .measure-label::before {
-            display: none !important;
-        }
-
+        .measure-label::before { display: none !important; }
         .measure-vertex {
-            background: var(--color-accent) !important;
-            border: 2px solid #fff !important;
-            border-radius: 50% !important;
-            width: 10px !important;
-            height: 10px !important;
-            margin-left: -5px !important;
-            margin-top: -5px !important;
+            background: var(--color-accent) !important; border: 2px solid #fff !important;
+            border-radius: 50% !important; width: 12px !important; height: 12px !important;
+            margin-left: -6px !important; margin-top: -6px !important;
         }
 
-        /* ── Measurement info bar ── */
         .measure-info {
-            position: absolute;
-            bottom: 30px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(231, 76, 60, 0.95);
-            color: #fff;
-            padding: 8px 16px;
-            border-radius: 8px;
-            font-size: 13px;
-            font-weight: 500;
-            z-index: 1000;
-            display: none;
-            text-align: center;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%);
+            background: rgba(231, 76, 60, 0.95); color: #fff; padding: 8px 16px;
+            border-radius: 8px; font-size: 13px; font-weight: 500;
+            z-index: 1000; display: none; text-align: center;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3); max-width: 90%;
         }
+        .measure-info.active { display: block; }
 
-        .measure-info.active {
-            display: block;
-        }
-
-        /* ── PDF export overlay ── */
+        /* ── PDF overlay ── */
         .pdf-generating {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.7);
-            z-index: 99999;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            color: #fff;
-            font-size: 18px;
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.7); z-index: 99999;
+            display: flex; justify-content: center; align-items: center;
+            color: #fff; font-size: 18px;
         }
-
         .pdf-generating .spinner {
-            display: inline-block;
-            width: 24px;
-            height: 24px;
-            border: 3px solid rgba(255,255,255,0.3);
-            border-top-color: #fff;
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-            margin-right: 12px;
+            display: inline-block; width: 24px; height: 24px;
+            border: 3px solid rgba(255,255,255,0.3); border-top-color: #fff;
+            border-radius: 50%; animation: spin 0.8s linear infinite; margin-right: 12px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ── Bottom bar (mobile) ── */
+        .bottom-bar {
+            display: none;
+            position: fixed;
+            bottom: 0; left: 0; right: 0;
+            height: var(--bottombar-height);
+            padding-bottom: var(--safe-bottom);
+            background: var(--color-panel);
+            border-top: 1px solid var(--color-border);
+            z-index: 1100;
+            justify-content: space-around;
+            align-items: center;
         }
 
-        @keyframes spin {
-            to { transform: rotate(360deg); }
+        .bottom-bar-btn {
+            display: flex; flex-direction: column; align-items: center;
+            justify-content: center; gap: 2px;
+            background: none; border: none; color: var(--color-text-light);
+            font-size: 10px; cursor: pointer; padding: 6px 12px;
+            border-radius: 8px; transition: all 0.2s;
+            min-width: 60px;
+        }
+        .bottom-bar-btn .bb-icon { font-size: 22px; line-height: 1; }
+        .bottom-bar-btn.active { color: var(--color-accent); background: rgba(231, 76, 60, 0.1); }
+
+        /* ══════════════════════════════
+           MOBILE RESPONSIVE  (<= 768px)
+           ══════════════════════════════ */
+        @media (max-width: 768px) {
+            :root {
+                --header-height: 48px;
+            }
+
+            #header h1 { font-size: 15px; }
+            #header .subtitle { display: none; }
+
+            /* Hide desktop header actions, show hamburger */
+            .header-actions { display: none; }
+            .hamburger { display: block; }
+
+            /* App fills below header, above bottom bar */
+            #app {
+                height: calc(100dvh - var(--header-height) - var(--bottombar-height) - var(--safe-bottom));
+                height: calc(100vh - var(--header-height) - var(--bottombar-height));
+            }
+
+            /* Sidebar becomes a left-side drawer overlay */
+            #sidebar {
+                position: fixed;
+                top: var(--header-height);
+                left: 0;
+                bottom: calc(var(--bottombar-height) + var(--safe-bottom));
+                width: 85vw;
+                max-width: 340px;
+                transform: translateX(-100%);
+                transition: transform 0.3s ease;
+                z-index: 1050;
+                border-right: 1px solid var(--color-border);
+            }
+            #sidebar.open { transform: translateX(0); }
+
+            /* Map takes full width */
+            #map-container { width: 100%; }
+
+            /* Show bottom bar */
+            .bottom-bar { display: flex; }
+
+            /* Toolbar compact */
+            .map-toolbar {
+                top: 8px; left: 8px; right: auto;
+                flex-wrap: wrap; max-width: calc(100vw - 80px);
+                padding: 4px;
+            }
+            .map-toolbar .btn { padding: 6px 8px; font-size: 12px; }
+            .map-toolbar .separator { display: none; }
+            .map-toolbar .toolbar-label { display: none; }
+
+            /* Scale info compact */
+            .scale-info {
+                bottom: 8px; right: 8px;
+                font-size: 10px; padding: 4px 8px;
+            }
+
+            /* Modals full-width */
+            .modal {
+                max-width: 100%; border-radius: 12px 12px 0 0;
+                max-height: 80vh; padding: 20px 16px;
+            }
+            .modal textarea { min-height: 150px; font-size: 14px; }
+
+            /* Bigger touch targets */
+            .element-list-item { padding: 12px; }
+            .element-list-item .el-delete { padding: 8px 10px; }
+            .library-item { padding: 12px 8px; }
+            .btn { padding: 10px 14px; }
+        }
+
+        /* ── Very small phones (<= 380px) ── */
+        @media (max-width: 380px) {
+            .map-toolbar .btn { font-size: 11px; padding: 5px 6px; }
+            .map-toolbar select { font-size: 11px; padding: 4px 5px; }
+            .library-grid { grid-template-columns: 1fr 1fr; gap: 4px; }
+            .library-item .icon { font-size: 24px; }
+            .library-item .label { font-size: 10px; }
+            .bottom-bar-btn { min-width: 50px; padding: 6px 8px; }
+            .bottom-bar-btn .bb-icon { font-size: 20px; }
+            .bottom-bar-btn { font-size: 9px; }
         }
     </style>
 </head>
@@ -614,34 +459,48 @@
     <div id="header">
         <h1>AoA - Festival Planner</h1>
         <span class="subtitle">Avenches - Place du Casino</span>
+
+        <!-- Desktop actions -->
         <div class="header-actions">
             <button class="btn" onclick="undoAction()" title="Annuler (Ctrl+Z)">&#8630; Annuler</button>
             <button class="btn" onclick="redoAction()" title="Rétablir (Ctrl+Y)">&#8631; Rétablir</button>
-            <button class="btn" onclick="exportXML()">&#128190; Export XML</button>
-            <button class="btn" onclick="showImportModal()">&#128194; Import XML</button>
-            <button class="btn btn-success" onclick="exportPDF()">&#128196; Export PDF</button>
-            <button class="btn btn-primary" onclick="showCustomElementModal()">+ Élément custom</button>
+            <button class="btn" onclick="exportXML()">&#128190; XML</button>
+            <button class="btn" onclick="showImportModal()">&#128194; Import</button>
+            <button class="btn btn-success" onclick="exportPDF()">&#128196; PDF</button>
+            <button class="btn btn-primary" onclick="showCustomElementModal()">+ Custom</button>
         </div>
+
+        <!-- Mobile hamburger -->
+        <button class="hamburger" id="hamburger-btn" onclick="toggleHeaderMenu()">&#9776;</button>
+    </div>
+
+    <!-- Mobile header dropdown -->
+    <div class="header-dropdown" id="header-dropdown">
+        <button class="btn" onclick="undoAction(); closeHeaderMenu();">&#8630; Annuler</button>
+        <button class="btn" onclick="redoAction(); closeHeaderMenu();">&#8631; Rétablir</button>
+        <button class="btn" onclick="exportXML(); closeHeaderMenu();">&#128190; Export XML</button>
+        <button class="btn" onclick="showImportModal(); closeHeaderMenu();">&#128194; Import XML</button>
+        <button class="btn btn-success" onclick="exportPDF(); closeHeaderMenu();">&#128196; Export PDF</button>
+        <button class="btn btn-primary" onclick="showCustomElementModal(); closeHeaderMenu();">+ Élément custom</button>
     </div>
 
     <!-- App layout -->
     <div id="app">
+        <!-- Sidebar backdrop (mobile) -->
+        <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeSidebar()"></div>
+
         <!-- Sidebar -->
         <div id="sidebar">
             <div class="sidebar-tabs">
-                <button class="sidebar-tab active" onclick="switchTab('library')">Bibliothèque</button>
-                <button class="sidebar-tab" onclick="switchTab('properties')">Propriétés</button>
-                <button class="sidebar-tab" onclick="switchTab('elements')">Éléments</button>
+                <button class="sidebar-tab active" data-tab="library" onclick="switchTab('library')">Bibliothèque</button>
+                <button class="sidebar-tab" data-tab="properties" onclick="switchTab('properties')">Propriétés</button>
+                <button class="sidebar-tab" data-tab="elements" onclick="switchTab('elements')">Éléments</button>
             </div>
 
-            <!-- Library panel -->
             <div id="panel-library" class="sidebar-panel active"></div>
 
-            <!-- Properties panel -->
             <div id="panel-properties" class="sidebar-panel">
-                <div id="no-selection-msg">
-                    Sélectionnez un élément sur la carte pour modifier ses propriétés.
-                </div>
+                <div id="no-selection-msg">Sélectionnez un élément sur la carte pour modifier ses propriétés.</div>
                 <div id="props-form" style="display:none;">
                     <div class="prop-group">
                         <label>Nom</label>
@@ -670,7 +529,7 @@
                     </div>
                     <div class="prop-group">
                         <label>Opacité</label>
-                        <input type="range" id="prop-opacity" min="0.1" max="1" step="0.1" oninput="updateProperty('opacity', parseFloat(this.value))">
+                        <input type="range" id="prop-opacity" min="0.1" max="1" step="0.1" oninput="updateProperty('opacity', parseFloat(this.value))" style="height:36px;">
                     </div>
                     <div class="prop-group">
                         <label>Notes</label>
@@ -688,7 +547,6 @@
                 </div>
             </div>
 
-            <!-- Elements list panel -->
             <div id="panel-elements" class="sidebar-panel">
                 <div id="elements-list"></div>
                 <div id="no-elements-msg" style="text-align:center; padding:40px 20px; color:var(--color-text-light); font-size:13px;">
@@ -699,9 +557,8 @@
 
         <!-- Map -->
         <div id="map-container">
-            <!-- Toolbar -->
             <div class="map-toolbar">
-                <button class="btn" id="btn-grid" onclick="toggleGrid()" title="Grille d'accrochage (G)">&#9638; Grille</button>
+                <button class="btn" id="btn-grid" onclick="toggleGrid()" title="Grille (G)">&#9638; <span class="toolbar-label">Grille</span></button>
                 <select id="grid-size" onchange="updateGridSize()" title="Taille de la grille">
                     <option value="0.5">0.5m</option>
                     <option value="1" selected>1m</option>
@@ -710,10 +567,10 @@
                     <option value="10">10m</option>
                 </select>
                 <div class="separator"></div>
-                <button class="btn" id="btn-snap" onclick="toggleSnap()" title="Activer/désactiver l'accrochage (S)">&#9898; Snap</button>
+                <button class="btn" id="btn-snap" onclick="toggleSnap()" title="Snap (S)">&#9898; <span class="toolbar-label">Snap</span></button>
                 <div class="separator"></div>
-                <button class="btn" id="btn-measure" onclick="toggleMeasureMode()" title="Mesurer une distance (M)">&#128207; Mesure</button>
-                <button class="btn" id="btn-clear-measures" onclick="clearMeasurements()" title="Effacer les mesures" style="display:none;">&#10005; Effacer</button>
+                <button class="btn" id="btn-measure" onclick="toggleMeasureMode()" title="Mesure (M)">&#128207; <span class="toolbar-label">Mesure</span></button>
+                <button class="btn" id="btn-clear-measures" onclick="clearMeasurements()" title="Effacer" style="display:none;">&#10005;</button>
             </div>
 
             <div id="map"></div>
@@ -722,11 +579,31 @@
         </div>
     </div>
 
+    <!-- Bottom bar (mobile) -->
+    <div class="bottom-bar" id="bottom-bar">
+        <button class="bottom-bar-btn active" data-bb="library" onclick="mobileShowPanel('library')">
+            <span class="bb-icon">&#128218;</span>
+            Biblio
+        </button>
+        <button class="bottom-bar-btn" data-bb="properties" onclick="mobileShowPanel('properties')">
+            <span class="bb-icon">&#9881;</span>
+            Props
+        </button>
+        <button class="bottom-bar-btn" data-bb="map" onclick="mobileShowMap()">
+            <span class="bb-icon">&#128506;</span>
+            Carte
+        </button>
+        <button class="bottom-bar-btn" data-bb="elements" onclick="mobileShowPanel('elements')">
+            <span class="bb-icon">&#128203;</span>
+            Liste
+        </button>
+    </div>
+
     <!-- Import Modal -->
     <div class="modal-overlay" id="import-modal">
         <div class="modal">
             <h2>Importer un plan XML</h2>
-            <textarea id="import-xml-content" placeholder="Collez votre XML ici ou utilisez le bouton ci-dessous pour charger un fichier..."></textarea>
+            <textarea id="import-xml-content" placeholder="Collez votre XML ici ou chargez un fichier..."></textarea>
             <div style="margin-top: 8px;">
                 <input type="file" id="import-file" accept=".xml" onchange="loadXMLFile(event)" style="font-size: 12px; color: var(--color-text-light);">
             </div>
@@ -740,10 +617,10 @@
     <!-- Custom Element Modal -->
     <div class="modal-overlay" id="custom-element-modal">
         <div class="modal">
-            <h2>Créer un élément personnalisé</h2>
+            <h2>Élément personnalisé</h2>
             <div class="custom-form">
                 <div class="prop-group">
-                    <label>Nom de l'élément</label>
+                    <label>Nom</label>
                     <input type="text" id="custom-name" placeholder="ex: Buvette VIP">
                 </div>
                 <div class="prop-group">
@@ -762,22 +639,22 @@
                 </div>
                 <div class="prop-row">
                     <div class="prop-group">
-                        <label>Largeur par défaut (m)</label>
+                        <label>Largeur (m)</label>
                         <input type="number" id="custom-width" value="3" step="0.5" min="0.5">
                     </div>
                     <div class="prop-group">
-                        <label>Profondeur par défaut (m)</label>
+                        <label>Profondeur (m)</label>
                         <input type="number" id="custom-height" value="3" step="0.5" min="0.5">
                     </div>
                 </div>
                 <div class="prop-group">
-                    <label>Couleur par défaut</label>
+                    <label>Couleur</label>
                     <input type="color" id="custom-color" value="#3498db">
                 </div>
             </div>
             <div class="modal-actions">
                 <button class="btn" onclick="closeCustomElementModal()">Annuler</button>
-                <button class="btn btn-primary" onclick="addCustomElement()">Ajouter à la bibliothèque</button>
+                <button class="btn btn-primary" onclick="addCustomElement()">Ajouter</button>
             </div>
         </div>
     </div>
@@ -788,7 +665,7 @@
             <h2>Export PDF</h2>
             <div class="custom-form">
                 <div class="prop-group">
-                    <label>Titre du document</label>
+                    <label>Titre</label>
                     <input type="text" id="pdf-title" value="Plan Festival Avenches">
                 </div>
                 <div class="prop-row">
@@ -810,14 +687,14 @@
                 </div>
                 <div class="prop-group">
                     <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
-                        <input type="checkbox" id="pdf-legend" checked style="width:auto;">
-                        Inclure la légende des éléments
+                        <input type="checkbox" id="pdf-legend" checked style="width:auto; height:20px;">
+                        Inclure la légende
                     </label>
                 </div>
             </div>
             <div class="modal-actions">
                 <button class="btn" onclick="closePdfModal()">Annuler</button>
-                <button class="btn btn-success" onclick="generatePDF()">Générer le PDF</button>
+                <button class="btn btn-success" onclick="generatePDF()">Générer</button>
             </div>
         </div>
     </div>
@@ -835,6 +712,7 @@
 
     const AVENCHES_CENTER = [46.88230, 7.04200];
     const DEFAULT_ZOOM = 19;
+    const isMobile = () => window.innerWidth <= 768;
 
     // ═══════════════════════════════════════════
     //  ELEMENT LIBRARY
@@ -908,19 +786,66 @@
     let undoStack = [];
     let redoStack = [];
     let dragSourceItem = null;
-
-    // Grid & Snap state
     let gridVisible = false;
     let snapEnabled = false;
     let gridSizeMeters = 1;
     let gridLayer = null;
-
-    // Measure state
     let measureMode = false;
     let measurePoints = [];
     let measureLayers = [];
     let measureTempLine = null;
     let measureTempMarker = null;
+    let placementItem = null;
+
+    // Touch drag state
+    let touchDragItem = null;
+    let touchGhost = null;
+
+    // ═══════════════════════════════════════════
+    //  MOBILE NAVIGATION
+    // ═══════════════════════════════════════════
+
+    function toggleHeaderMenu() {
+        document.getElementById('header-dropdown').classList.toggle('open');
+    }
+    function closeHeaderMenu() {
+        document.getElementById('header-dropdown').classList.remove('open');
+    }
+
+    function openSidebar() {
+        document.getElementById('sidebar').classList.add('open');
+        document.getElementById('sidebar-backdrop').classList.add('visible');
+    }
+    function closeSidebar() {
+        document.getElementById('sidebar').classList.remove('open');
+        document.getElementById('sidebar-backdrop').classList.remove('visible');
+    }
+
+    function mobileShowPanel(panelName) {
+        // Update bottom bar active state
+        document.querySelectorAll('.bottom-bar-btn').forEach(b => b.classList.remove('active'));
+        const bbBtn = document.querySelector(`.bottom-bar-btn[data-bb="${panelName}"]`);
+        if (bbBtn) bbBtn.classList.add('active');
+
+        switchTab(panelName);
+        openSidebar();
+    }
+
+    function mobileShowMap() {
+        document.querySelectorAll('.bottom-bar-btn').forEach(b => b.classList.remove('active'));
+        document.querySelector('.bottom-bar-btn[data-bb="map"]').classList.add('active');
+        closeSidebar();
+        map.invalidateSize();
+    }
+
+    // Close dropdown when tapping outside
+    document.addEventListener('click', (e) => {
+        const dropdown = document.getElementById('header-dropdown');
+        const hamburger = document.getElementById('hamburger-btn');
+        if (!dropdown.contains(e.target) && !hamburger.contains(e.target)) {
+            closeHeaderMenu();
+        }
+    });
 
     // ═══════════════════════════════════════════
     //  MAP INITIALIZATION
@@ -931,7 +856,9 @@
         zoom: DEFAULT_ZOOM,
         maxZoom: 22,
         minZoom: 14,
-        zoomControl: false
+        zoomControl: false,
+        tap: true,
+        tapTolerance: 15
     });
 
     L.control.zoom({ position: 'topright' }).addTo(map);
@@ -939,15 +866,14 @@
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 22,
         maxNativeZoom: 19,
-        attribution: '&copy; OpenStreetMap contributors'
+        attribution: '&copy; OSM'
     }).addTo(map);
 
-    // Update scale display
     function updateScaleInfo() {
         const center = map.getCenter();
         const zoom = map.getZoom();
-        const metersPerPixel = 156543.03392 * Math.cos(center.lat * Math.PI / 180) / Math.pow(2, zoom);
-        document.getElementById('scale-info').textContent = `Zoom: ${zoom} | ~${metersPerPixel.toFixed(2)} m/px | Grille: ${gridSizeMeters}m`;
+        const mpp = 156543.03392 * Math.cos(center.lat * Math.PI / 180) / Math.pow(2, zoom);
+        document.getElementById('scale-info').textContent = `Z${zoom} | ${mpp.toFixed(2)} m/px | Grille: ${gridSizeMeters}m`;
     }
     map.on('zoomend moveend', () => {
         updateScaleInfo();
@@ -956,17 +882,21 @@
     updateScaleInfo();
 
     // ═══════════════════════════════════════════
-    //  UTILITY: meters to lat/lng offset
+    //  UTILITY
     // ═══════════════════════════════════════════
 
     function metersToLatLng(lat, meters) {
-        const latOffset = meters / 111320;
-        const lngOffset = meters / (111320 * Math.cos(lat * Math.PI / 180));
-        return { lat: latOffset, lng: lngOffset };
+        const latOff = meters / 111320;
+        const lngOff = meters / (111320 * Math.cos(lat * Math.PI / 180));
+        return { lat: latOff, lng: lngOff };
     }
 
-    function distanceBetween(latlng1, latlng2) {
-        return map.distance(latlng1, latlng2);
+    function distanceBetween(ll1, ll2) { return map.distance(ll1, ll2); }
+
+    function formatDistance(m) {
+        if (m >= 1000) return (m / 1000).toFixed(2) + ' km';
+        if (m >= 10) return m.toFixed(1) + ' m';
+        return m.toFixed(2) + ' m';
     }
 
     // ═══════════════════════════════════════════
@@ -975,20 +905,17 @@
 
     function snapToGrid(latlng) {
         if (!snapEnabled) return latlng;
-        const offset = metersToLatLng(latlng.lat, gridSizeMeters);
-        const snappedLat = Math.round(latlng.lat / offset.lat) * offset.lat;
-        const snappedLng = Math.round(latlng.lng / offset.lng) * offset.lng;
-        return L.latLng(snappedLat, snappedLng);
+        const off = metersToLatLng(latlng.lat, gridSizeMeters);
+        return L.latLng(
+            Math.round(latlng.lat / off.lat) * off.lat,
+            Math.round(latlng.lng / off.lng) * off.lng
+        );
     }
 
     function toggleGrid() {
         gridVisible = !gridVisible;
         document.getElementById('btn-grid').classList.toggle('active', gridVisible);
-        if (gridVisible) {
-            refreshGrid();
-        } else {
-            removeGrid();
-        }
+        gridVisible ? refreshGrid() : removeGrid();
     }
 
     function toggleSnap() {
@@ -1003,68 +930,34 @@
     }
 
     function removeGrid() {
-        if (gridLayer) {
-            map.removeLayer(gridLayer);
-            gridLayer = null;
-        }
+        if (gridLayer) { map.removeLayer(gridLayer); gridLayer = null; }
     }
 
     function refreshGrid() {
         removeGrid();
-
         const bounds = map.getBounds();
         const center = map.getCenter();
-        const offset = metersToLatLng(center.lat, gridSizeMeters);
+        const off = metersToLatLng(center.lat, gridSizeMeters);
+        const south = bounds.getSouth(), north = bounds.getNorth();
+        const west = bounds.getWest(), east = bounds.getEast();
+        const startLat = Math.floor(south / off.lat) * off.lat;
+        const endLat = Math.ceil(north / off.lat) * off.lat;
+        const startLng = Math.floor(west / off.lng) * off.lng;
+        const endLng = Math.ceil(east / off.lng) * off.lng;
 
-        // Calculate grid bounds with some padding
-        const south = bounds.getSouth();
-        const north = bounds.getNorth();
-        const west = bounds.getWest();
-        const east = bounds.getEast();
-
-        const startLat = Math.floor(south / offset.lat) * offset.lat;
-        const endLat = Math.ceil(north / offset.lat) * offset.lat;
-        const startLng = Math.floor(west / offset.lng) * offset.lng;
-        const endLng = Math.ceil(east / offset.lng) * offset.lng;
+        const latCount = Math.round((endLat - startLat) / off.lat);
+        const lngCount = Math.round((endLng - startLng) / off.lng);
+        if (latCount > 200 || lngCount > 200) { gridLayer = L.layerGroup().addTo(map); return; }
 
         const lines = [];
-        const gridColor = 'rgba(255, 255, 255, 0.12)';
-        const gridWeight = 0.5;
-
-        // Limit grid lines to prevent performance issues
-        const maxLines = 200;
-        const latCount = Math.round((endLat - startLat) / offset.lat);
-        const lngCount = Math.round((endLng - startLng) / offset.lng);
-
-        if (latCount > maxLines || lngCount > maxLines) {
-            // Grid would be too dense, skip drawing
-            gridLayer = L.layerGroup().addTo(map);
-            return;
-        }
-
-        // Horizontal lines
-        for (let lat = startLat; lat <= endLat; lat += offset.lat) {
-            lines.push(L.polyline([[lat, west], [lat, east]], {
-                color: gridColor,
-                weight: gridWeight,
-                interactive: false
-            }));
-        }
-
-        // Vertical lines
-        for (let lng = startLng; lng <= endLng; lng += offset.lng) {
-            lines.push(L.polyline([[south, lng], [north, lng]], {
-                color: gridColor,
-                weight: gridWeight,
-                interactive: false
-            }));
-        }
+        const style = { color: 'rgba(255,255,255,0.12)', weight: 0.5, interactive: false };
+        for (let lat = startLat; lat <= endLat; lat += off.lat)
+            lines.push(L.polyline([[lat, west], [lat, east]], style));
+        for (let lng = startLng; lng <= endLng; lng += off.lng)
+            lines.push(L.polyline([[south, lng], [north, lng]], style));
 
         gridLayer = L.layerGroup(lines).addTo(map);
-        // Grid behind elements
-        if (gridLayer._container) {
-            gridLayer._container.style.zIndex = '100';
-        }
+        if (gridLayer._container) gridLayer._container.style.zIndex = '100';
     }
 
     // ═══════════════════════════════════════════
@@ -1074,11 +967,10 @@
     function toggleMeasureMode() {
         measureMode = !measureMode;
         document.getElementById('btn-measure').classList.toggle('active', measureMode);
-
         if (measureMode) {
             document.getElementById('map').classList.add('measure-mode');
             measurePoints = [];
-            updateMeasureInfo('Cliquez sur la carte pour placer le 1er point de mesure.');
+            updateMeasureInfo('Touchez la carte pour le 1er point.');
             document.getElementById('btn-clear-measures').style.display = '';
         } else {
             document.getElementById('map').classList.remove('measure-mode');
@@ -1089,137 +981,70 @@
         }
     }
 
-    function updateMeasureInfo(text) {
-        const el = document.getElementById('measure-info');
-        el.textContent = text;
-        el.classList.add('active');
-    }
-
-    function hideMeasureInfo() {
-        document.getElementById('measure-info').classList.remove('active');
-    }
+    function updateMeasureInfo(t) { const el = document.getElementById('measure-info'); el.textContent = t; el.classList.add('active'); }
+    function hideMeasureInfo() { document.getElementById('measure-info').classList.remove('active'); }
 
     function clearMeasurements() {
-        measureLayers.forEach(layer => map.removeLayer(layer));
+        measureLayers.forEach(l => map.removeLayer(l));
         measureLayers = [];
         if (measureTempLine) { map.removeLayer(measureTempLine); measureTempLine = null; }
         if (measureTempMarker) { map.removeLayer(measureTempMarker); measureTempMarker = null; }
         measurePoints = [];
         document.getElementById('btn-clear-measures').style.display = 'none';
-        if (measureMode) {
-            updateMeasureInfo('Cliquez sur la carte pour placer le 1er point de mesure.');
-        } else {
-            hideMeasureInfo();
-        }
+        measureMode ? updateMeasureInfo('Touchez la carte pour le 1er point.') : hideMeasureInfo();
     }
 
     function addMeasurePoint(latlng) {
         measurePoints.push(latlng);
-
-        // Add vertex marker
-        const vertexIcon = L.divIcon({ className: 'measure-vertex', iconSize: [10, 10] });
-        const marker = L.marker(latlng, { icon: vertexIcon, interactive: false }).addTo(map);
-        measureLayers.push(marker);
+        const vi = L.divIcon({ className: 'measure-vertex', iconSize: [12, 12] });
+        measureLayers.push(L.marker(latlng, { icon: vi, interactive: false }).addTo(map));
 
         if (measurePoints.length === 1) {
-            updateMeasureInfo('Cliquez pour le 2e point. (Continuez pour une polyligne)');
-        }
-
-        if (measurePoints.length >= 2) {
-            const prev = measurePoints[measurePoints.length - 2];
-            const curr = measurePoints[measurePoints.length - 1];
-
-            // Segment line
-            const segLine = L.polyline([prev, curr], {
-                color: '#e74c3c',
-                weight: 3,
-                dashArray: '8 6',
-                interactive: false
-            }).addTo(map);
-            measureLayers.push(segLine);
-
-            // Segment distance label
-            const segDist = distanceBetween(prev, curr);
-            const midLat = (prev.lat + curr.lat) / 2;
-            const midLng = (prev.lng + curr.lng) / 2;
-            const segLabel = L.tooltip({
-                permanent: true,
-                direction: 'center',
-                className: 'measure-label',
-                interactive: false
-            }).setLatLng([midLat, midLng])
-              .setContent(formatDistance(segDist))
-              .addTo(map);
-            measureLayers.push(segLabel);
-
-            // Total distance
-            let totalDist = 0;
-            for (let i = 1; i < measurePoints.length; i++) {
-                totalDist += distanceBetween(measurePoints[i - 1], measurePoints[i]);
-            }
-
-            if (measurePoints.length > 2) {
-                updateMeasureInfo(`Segment: ${formatDistance(segDist)} | Total: ${formatDistance(totalDist)} | Clic droit ou Echap pour terminer`);
-            } else {
-                updateMeasureInfo(`Distance: ${formatDistance(segDist)} | Continuez ou clic droit pour terminer`);
-            }
-        }
-    }
-
-    function formatDistance(meters) {
-        if (meters >= 1000) return (meters / 1000).toFixed(2) + ' km';
-        if (meters >= 10) return meters.toFixed(1) + ' m';
-        return meters.toFixed(2) + ' m';
-    }
-
-    // Map click handler for measurement
-    map.on('click', (e) => {
-        if (measureMode) {
-            L.DomEvent.stopPropagation(e);
-            addMeasurePoint(e.latlng);
+            updateMeasureInfo('Touchez pour le 2e point.');
             return;
         }
-        if (!placementItem) {
-            deselectAll();
-        }
-    });
+        const prev = measurePoints[measurePoints.length - 2];
+        const curr = measurePoints[measurePoints.length - 1];
 
-    // Right-click or Escape to end measurement
-    map.on('contextmenu', (e) => {
-        if (measureMode) {
-            L.DomEvent.preventDefault(e);
-            toggleMeasureMode();
-        }
-    });
+        measureLayers.push(L.polyline([prev, curr], {
+            color: '#e74c3c', weight: 3, dashArray: '8 6', interactive: false
+        }).addTo(map));
 
-    // Temp line while measuring
+        const segDist = distanceBetween(prev, curr);
+        const mid = [(prev.lat + curr.lat) / 2, (prev.lng + curr.lng) / 2];
+        measureLayers.push(L.tooltip({
+            permanent: true, direction: 'center', className: 'measure-label', interactive: false
+        }).setLatLng(mid).setContent(formatDistance(segDist)).addTo(map));
+
+        let total = 0;
+        for (let i = 1; i < measurePoints.length; i++)
+            total += distanceBetween(measurePoints[i - 1], measurePoints[i]);
+
+        if (measurePoints.length > 2)
+            updateMeasureInfo(`Seg: ${formatDistance(segDist)} | Total: ${formatDistance(total)}`);
+        else
+            updateMeasureInfo(`Distance: ${formatDistance(segDist)}`);
+    }
+
+    // Map events
+    map.on('click', (e) => {
+        if (measureMode) { L.DomEvent.stopPropagation(e); addMeasurePoint(e.latlng); return; }
+        if (!placementItem) deselectAll();
+    });
+    map.on('contextmenu', (e) => { if (measureMode) { L.DomEvent.preventDefault(e); toggleMeasureMode(); } });
     map.on('mousemove', (e) => {
         if (!measureMode || measurePoints.length === 0) return;
-
-        const lastPt = measurePoints[measurePoints.length - 1];
-
+        const last = measurePoints[measurePoints.length - 1];
         if (measureTempLine) map.removeLayer(measureTempLine);
-        measureTempLine = L.polyline([lastPt, e.latlng], {
-            color: '#e74c3c',
-            weight: 2,
-            dashArray: '4 4',
-            opacity: 0.6,
-            interactive: false
+        measureTempLine = L.polyline([last, e.latlng], {
+            color: '#e74c3c', weight: 2, dashArray: '4 4', opacity: 0.6, interactive: false
         }).addTo(map);
-
-        // Show live distance
-        const dist = distanceBetween(lastPt, e.latlng);
+        const dist = distanceBetween(last, e.latlng);
         if (measureTempMarker) map.removeLayer(measureTempMarker);
-        const midLat = (lastPt.lat + e.latlng.lat) / 2;
-        const midLng = (lastPt.lng + e.latlng.lng) / 2;
         measureTempMarker = L.tooltip({
-            permanent: true,
-            direction: 'center',
-            className: 'measure-label',
-            interactive: false
-        }).setLatLng([midLat, midLng])
-          .setContent(formatDistance(dist))
-          .addTo(map);
+            permanent: true, direction: 'center', className: 'measure-label', interactive: false
+        }).setLatLng([(last.lat + e.latlng.lat) / 2, (last.lng + e.latlng.lng) / 2])
+          .setContent(formatDistance(dist)).addTo(map);
     });
 
     // ═══════════════════════════════════════════
@@ -1234,7 +1059,6 @@
             const section = document.createElement('div');
             section.className = 'library-category';
             section.innerHTML = `<h3>${cat.label}</h3>`;
-
             const grid = document.createElement('div');
             grid.className = 'library-grid';
 
@@ -1248,6 +1072,7 @@
                     <span class="dims">${item.width}m × ${item.height}m</span>
                 `;
 
+                // Desktop drag
                 div.addEventListener('dragstart', (e) => {
                     dragSourceItem = item;
                     e.dataTransfer.setData('text/plain', JSON.stringify(item));
@@ -1256,15 +1081,63 @@
                     ghost.style.display = 'block';
                     e.dataTransfer.setDragImage(ghost, 20, 20);
                 });
-
                 div.addEventListener('dragend', () => {
                     dragSourceItem = null;
                     document.getElementById('drag-ghost').style.display = 'none';
                 });
 
-                // Also support click-to-place
-                div.addEventListener('click', () => {
-                    startPlacementMode(item);
+                // Click-to-place (both mobile & desktop)
+                div.addEventListener('click', (e) => {
+                    if (e.target.closest('.library-item')) {
+                        startPlacementMode(item);
+                        if (isMobile()) closeSidebar();
+                    }
+                });
+
+                // Touch drag from library to map
+                div.addEventListener('touchstart', (e) => {
+                    touchDragItem = item;
+                    const touch = e.touches[0];
+                    // Create ghost
+                    touchGhost = document.createElement('div');
+                    touchGhost.className = 'drag-ghost';
+                    touchGhost.textContent = item.icon;
+                    touchGhost.style.display = 'block';
+                    touchGhost.style.left = touch.clientX + 'px';
+                    touchGhost.style.top = touch.clientY + 'px';
+                    document.body.appendChild(touchGhost);
+                }, { passive: true });
+
+                div.addEventListener('touchmove', (e) => {
+                    if (!touchGhost) return;
+                    const touch = e.touches[0];
+                    touchGhost.style.left = touch.clientX + 'px';
+                    touchGhost.style.top = touch.clientY + 'px';
+                    e.preventDefault();
+                }, { passive: false });
+
+                div.addEventListener('touchend', (e) => {
+                    if (!touchDragItem || !touchGhost) {
+                        touchDragItem = null;
+                        return;
+                    }
+                    const touch = e.changedTouches[0];
+                    const mapRect = document.getElementById('map').getBoundingClientRect();
+
+                    // Check if drop is on the map
+                    if (touch.clientX >= mapRect.left && touch.clientX <= mapRect.right &&
+                        touch.clientY >= mapRect.top && touch.clientY <= mapRect.bottom) {
+                        const x = touch.clientX - mapRect.left;
+                        const y = touch.clientY - mapRect.top;
+                        let latlng = map.containerPointToLatLng([x, y]);
+                        if (snapEnabled) latlng = snapToGrid(latlng);
+                        placeElement(touchDragItem, latlng);
+                        if (isMobile()) closeSidebar();
+                    }
+
+                    touchGhost.remove();
+                    touchGhost = null;
+                    touchDragItem = null;
                 });
 
                 grid.appendChild(div);
@@ -1276,44 +1149,34 @@
     }
 
     // ═══════════════════════════════════════════
-    //  PLACEMENT MODE (click on map to place)
+    //  PLACEMENT MODE
     // ═══════════════════════════════════════════
-
-    let placementItem = null;
 
     function startPlacementMode(item) {
         placementItem = item;
         document.getElementById('map').classList.add('placement-mode');
+        if (isMobile()) {
+            updateMeasureInfo(`Touchez la carte pour placer: ${item.icon} ${item.name}`);
+        }
         map.once('click', (e) => {
             if (measureMode) return;
             const pos = snapEnabled ? snapToGrid(e.latlng) : e.latlng;
             placeElement(item, pos);
             document.getElementById('map').classList.remove('placement-mode');
             placementItem = null;
+            hideMeasureInfo();
         });
     }
 
-    // ═══════════════════════════════════════════
-    //  DRAG & DROP on map
-    // ═══════════════════════════════════════════
-
+    // Desktop drag & drop on map
     const mapEl = document.getElementById('map');
-    mapEl.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        e.dataTransfer.dropEffect = 'copy';
-    });
-
+    mapEl.addEventListener('dragover', (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; });
     mapEl.addEventListener('drop', (e) => {
         e.preventDefault();
         if (!dragSourceItem) return;
-
         const rect = mapEl.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
-        let latlng = map.containerPointToLatLng([x, y]);
-
+        let latlng = map.containerPointToLatLng([e.clientX - rect.left, e.clientY - rect.top]);
         if (snapEnabled) latlng = snapToGrid(latlng);
-
         placeElement(dragSourceItem, latlng);
         dragSourceItem = null;
     });
@@ -1327,8 +1190,7 @@
         if (!restoreData && id >= nextId) nextId = id + 1;
 
         const data = {
-            id: id,
-            typeId: item.id,
+            id, typeId: item.id,
             name: restoreData ? restoreData.name : item.name,
             icon: item.icon,
             width: restoreData ? restoreData.width : item.width,
@@ -1336,178 +1198,189 @@
             color: restoreData ? restoreData.color : item.color,
             opacity: restoreData ? (restoreData.opacity || 0.6) : 0.6,
             rotation: restoreData ? (restoreData.rotation || 0) : 0,
-            lat: latlng.lat,
-            lng: latlng.lng,
+            lat: latlng.lat, lng: latlng.lng,
             notes: restoreData ? (restoreData.notes || '') : '',
-            layer: null,
-            labelMarker: null
+            layer: null, labelMarker: null
         };
 
         createMapElement(data);
         placedElements.push(data);
-
-        if (!restoreData) {
-            saveUndo();
-        }
-
+        if (!restoreData) saveUndo();
         refreshElementsList();
         selectElement(data.id);
     }
 
     function createMapElement(data) {
-        // Remove old layer if exists
-        if (data.layer) {
-            map.removeLayer(data.layer);
-        }
-        if (data.labelMarker) {
-            map.removeLayer(data.labelMarker);
-        }
+        if (data.layer) map.removeLayer(data.layer);
+        if (data.labelMarker) map.removeLayer(data.labelMarker);
 
         const bounds = getElementBounds(data);
-
-        // Create rectangle
         const rect = L.rectangle(bounds, {
-            color: data.color,
-            fillColor: data.color,
-            fillOpacity: data.opacity,
-            weight: 2,
-            className: `element-rect-${data.id}`
+            color: data.color, fillColor: data.color,
+            fillOpacity: data.opacity, weight: 2
         });
 
-        // Apply rotation via CSS transform
-        rect.on('add', () => {
-            applyRotation(data);
-        });
-
+        rect.on('add', () => applyRotation(data));
         rect.addTo(map);
 
-        // Tooltip
         rect.bindTooltip(
             `${data.icon} ${data.name}<br>${data.width}m × ${data.height}m`,
             { className: 'element-tooltip', direction: 'top', offset: [0, -10] }
         );
 
-        // Make draggable
+        // ── Mouse drag ──
         let isDragging = false;
-        let dragStartLatLng = null;
+        let dragStart = null;
 
         rect.on('mousedown', (e) => {
-            if (measureMode) return;
-            if (e.originalEvent.button !== 0) return;
+            if (measureMode || e.originalEvent.button !== 0) return;
             isDragging = true;
-            dragStartLatLng = e.latlng;
+            dragStart = e.latlng;
             map.dragging.disable();
             L.DomEvent.stopPropagation(e);
             selectElement(data.id);
         });
 
         map.on('mousemove', (e) => {
-            if (!isDragging || !dragStartLatLng) return;
-            const dlat = e.latlng.lat - dragStartLatLng.lat;
-            const dlng = e.latlng.lng - dragStartLatLng.lng;
-            data.lat += dlat;
-            data.lng += dlng;
-            dragStartLatLng = e.latlng;
+            if (!isDragging || !dragStart) return;
+            data.lat += e.latlng.lat - dragStart.lat;
+            data.lng += e.latlng.lng - dragStart.lng;
+            dragStart = e.latlng;
             updateElementVisual(data);
             updatePropsPanel();
         });
 
-        map.on('mouseup', (e) => {
+        map.on('mouseup', () => {
             if (isDragging) {
                 isDragging = false;
-                dragStartLatLng = null;
+                dragStart = null;
                 map.dragging.enable();
-                // Snap on drop
                 if (snapEnabled) {
-                    const snapped = snapToGrid(L.latLng(data.lat, data.lng));
-                    data.lat = snapped.lat;
-                    data.lng = snapped.lng;
-                    updateElementVisual(data);
-                    updatePropsPanel();
+                    const s = snapToGrid(L.latLng(data.lat, data.lng));
+                    data.lat = s.lat; data.lng = s.lng;
+                    updateElementVisual(data); updatePropsPanel();
                 }
                 saveUndo();
             }
         });
 
+        // ── Touch drag on map element ──
+        let touchDragging = false;
+        let touchStart = null;
+        let longPressTimer = null;
+
         rect.on('click', (e) => {
             if (measureMode) return;
             L.DomEvent.stopPropagation(e);
             selectElement(data.id);
+            if (isMobile()) {
+                switchTab('properties');
+                openSidebar();
+                document.querySelectorAll('.bottom-bar-btn').forEach(b => b.classList.remove('active'));
+                document.querySelector('.bottom-bar-btn[data-bb="properties"]').classList.add('active');
+            }
+        });
+
+        // Touch events for dragging placed elements
+        if (rect._path) attachTouchDrag(rect._path, data);
+        rect.on('add', () => {
+            if (rect._path) attachTouchDrag(rect._path, data);
         });
 
         data.layer = rect;
 
-        // Label marker
+        // Label
         const labelIcon = L.divIcon({
             className: 'element-label',
-            html: `<div style="
-                font-size: 22px;
-                text-align: center;
-                line-height: 1;
-                text-shadow: 0 1px 3px rgba(0,0,0,0.8);
-                pointer-events: none;
-                transform: rotate(${data.rotation}deg);
-            ">${data.icon}</div>`,
-            iconSize: [30, 30],
-            iconAnchor: [15, 15]
+            html: `<div style="font-size:22px;text-align:center;line-height:1;text-shadow:0 1px 3px rgba(0,0,0,0.8);pointer-events:none;transform:rotate(${data.rotation}deg)">${data.icon}</div>`,
+            iconSize: [30, 30], iconAnchor: [15, 15]
         });
-
         data.labelMarker = L.marker([data.lat, data.lng], { icon: labelIcon, interactive: false }).addTo(map);
     }
 
-    function getElementBounds(data) {
-        const offset = metersToLatLng(data.lat, 1);
-        const halfW = (data.width / 2) * offset.lng;
-        const halfH = (data.height / 2) * offset.lat;
+    function attachTouchDrag(pathEl, data) {
+        if (pathEl._touchDragAttached) return;
+        pathEl._touchDragAttached = true;
 
-        return [
-            [data.lat - halfH, data.lng - halfW],
-            [data.lat + halfH, data.lng + halfW]
-        ];
+        let touchActive = false;
+        let lastTouch = null;
+
+        pathEl.addEventListener('touchstart', (e) => {
+            if (measureMode) return;
+            if (e.touches.length !== 1) return;
+            touchActive = true;
+            lastTouch = e.touches[0];
+            selectElement(data.id);
+            map.dragging.disable();
+            e.stopPropagation();
+        }, { passive: true });
+
+        pathEl.addEventListener('touchmove', (e) => {
+            if (!touchActive || !lastTouch) return;
+            const t = e.touches[0];
+            const mapRect = document.getElementById('map').getBoundingClientRect();
+
+            const prevLL = map.containerPointToLatLng([lastTouch.clientX - mapRect.left, lastTouch.clientY - mapRect.top]);
+            const currLL = map.containerPointToLatLng([t.clientX - mapRect.left, t.clientY - mapRect.top]);
+
+            data.lat += currLL.lat - prevLL.lat;
+            data.lng += currLL.lng - prevLL.lng;
+            lastTouch = t;
+            updateElementVisual(data);
+            updatePropsPanel();
+            e.preventDefault();
+            e.stopPropagation();
+        }, { passive: false });
+
+        pathEl.addEventListener('touchend', () => {
+            if (touchActive) {
+                touchActive = false;
+                lastTouch = null;
+                map.dragging.enable();
+                if (snapEnabled) {
+                    const s = snapToGrid(L.latLng(data.lat, data.lng));
+                    data.lat = s.lat; data.lng = s.lng;
+                    updateElementVisual(data); updatePropsPanel();
+                }
+                saveUndo();
+            }
+        }, { passive: true });
+    }
+
+    function getElementBounds(data) {
+        const off = metersToLatLng(data.lat, 1);
+        const hW = (data.width / 2) * off.lng;
+        const hH = (data.height / 2) * off.lat;
+        return [[data.lat - hH, data.lng - hW], [data.lat + hH, data.lng + hW]];
     }
 
     function applyRotation(data) {
         if (!data.layer || !data.layer._path) return;
         const el = data.layer._path;
-        const center = map.latLngToLayerPoint(L.latLng(data.lat, data.lng));
-        el.style.transformOrigin = `${center.x}px ${center.y}px`;
+        const c = map.latLngToLayerPoint(L.latLng(data.lat, data.lng));
+        el.style.transformOrigin = `${c.x}px ${c.y}px`;
         el.style.transform = `rotate(${data.rotation}deg)`;
     }
 
     function updateElementVisual(data) {
-        const bounds = getElementBounds(data);
         if (data.layer) {
-            data.layer.setBounds(bounds);
+            data.layer.setBounds(getElementBounds(data));
             data.layer.setStyle({
                 color: selectedElementId === data.id ? '#fff' : data.color,
-                fillColor: data.color,
-                fillOpacity: data.opacity,
+                fillColor: data.color, fillOpacity: data.opacity,
                 weight: selectedElementId === data.id ? 3 : 2,
                 dashArray: selectedElementId === data.id ? '6 3' : null
             });
-            // Update tooltip
-            data.layer.setTooltipContent(
-                `${data.icon} ${data.name}<br>${data.width}m × ${data.height}m`
-            );
-            // Rotation
+            data.layer.setTooltipContent(`${data.icon} ${data.name}<br>${data.width}m × ${data.height}m`);
             setTimeout(() => applyRotation(data), 0);
         }
         if (data.labelMarker) {
             data.labelMarker.setLatLng([data.lat, data.lng]);
-            const labelIcon = L.divIcon({
+            data.labelMarker.setIcon(L.divIcon({
                 className: 'element-label',
-                html: `<div style="
-                    font-size: 22px;
-                    text-align: center;
-                    line-height: 1;
-                    text-shadow: 0 1px 3px rgba(0,0,0,0.8);
-                    pointer-events: none;
-                    transform: rotate(${data.rotation}deg);
-                ">${data.icon}</div>`,
-                iconSize: [30, 30],
-                iconAnchor: [15, 15]
-            });
-            data.labelMarker.setIcon(labelIcon);
+                html: `<div style="font-size:22px;text-align:center;line-height:1;text-shadow:0 1px 3px rgba(0,0,0,0.8);pointer-events:none;transform:rotate(${data.rotation}deg)">${data.icon}</div>`,
+                iconSize: [30, 30], iconAnchor: [15, 15]
+            }));
         }
     }
 
@@ -1517,11 +1390,10 @@
 
     function selectElement(id) {
         selectedElementId = id;
-        // Update visuals
         placedElements.forEach(el => updateElementVisual(el));
         updatePropsPanel();
         refreshElementsList();
-        switchTab('properties');
+        if (!isMobile()) switchTab('properties');
     }
 
     function deselectAll() {
@@ -1539,15 +1411,8 @@
         const form = document.getElementById('props-form');
         const msg = document.getElementById('no-selection-msg');
         const el = placedElements.find(e => e.id === selectedElementId);
-
-        if (!el) {
-            form.style.display = 'none';
-            msg.style.display = 'block';
-            return;
-        }
-
-        form.style.display = 'block';
-        msg.style.display = 'none';
+        if (!el) { form.style.display = 'none'; msg.style.display = 'block'; return; }
+        form.style.display = 'block'; msg.style.display = 'none';
 
         document.getElementById('prop-name').value = el.name;
         document.getElementById('prop-width').value = el.width;
@@ -1564,12 +1429,10 @@
     function updateProperty(prop, value) {
         const el = placedElements.find(e => e.id === selectedElementId);
         if (!el) return;
-
         if (prop === 'color') {
             document.getElementById('prop-color').value = value;
             document.getElementById('prop-color-text').value = value;
         }
-
         el[prop] = value;
         updateElementVisual(el);
         refreshElementsList();
@@ -1580,26 +1443,15 @@
     //  DELETE
     // ═══════════════════════════════════════════
 
-    function deleteSelected() {
-        const el = placedElements.find(e => e.id === selectedElementId);
-        if (!el) return;
-        deleteElement(el.id);
-    }
+    function deleteSelected() { const el = placedElements.find(e => e.id === selectedElementId); if (el) deleteElement(el.id); }
 
     function deleteElement(id) {
         const el = placedElements.find(e => e.id === id);
         if (!el) return;
-
         if (el.layer) map.removeLayer(el.layer);
         if (el.labelMarker) map.removeLayer(el.labelMarker);
-
         placedElements = placedElements.filter(e => e.id !== id);
-
-        if (selectedElementId === id) {
-            selectedElementId = null;
-            updatePropsPanel();
-        }
-
+        if (selectedElementId === id) { selectedElementId = null; updatePropsPanel(); }
         saveUndo();
         refreshElementsList();
     }
@@ -1611,17 +1463,10 @@
     function refreshElementsList() {
         const list = document.getElementById('elements-list');
         const msg = document.getElementById('no-elements-msg');
-
-        if (placedElements.length === 0) {
-            list.innerHTML = '';
-            msg.style.display = 'block';
-            return;
-        }
-
+        if (placedElements.length === 0) { list.innerHTML = ''; msg.style.display = 'block'; return; }
         msg.style.display = 'none';
         list.innerHTML = placedElements.map(el => `
-            <div class="element-list-item ${el.id === selectedElementId ? 'selected' : ''}"
-                 onclick="selectAndFocus(${el.id})">
+            <div class="element-list-item ${el.id === selectedElementId ? 'selected' : ''}" onclick="selectAndFocus(${el.id})">
                 <span class="el-icon">${el.icon}</span>
                 <span class="el-name">${el.name}</span>
                 <span class="el-delete" onclick="event.stopPropagation(); deleteElement(${el.id})" title="Supprimer">&#10005;</span>
@@ -1632,9 +1477,8 @@
     function selectAndFocus(id) {
         selectElement(id);
         const el = placedElements.find(e => e.id === id);
-        if (el) {
-            map.panTo([el.lat, el.lng]);
-        }
+        if (el) map.panTo([el.lat, el.lng]);
+        if (isMobile()) closeSidebar();
     }
 
     // ═══════════════════════════════════════════
@@ -1644,8 +1488,8 @@
     function switchTab(tabName) {
         document.querySelectorAll('.sidebar-tab').forEach(t => t.classList.remove('active'));
         document.querySelectorAll('.sidebar-panel').forEach(p => p.classList.remove('active'));
-
-        document.querySelector(`.sidebar-tab[onclick="switchTab('${tabName}')"]`).classList.add('active');
+        const tab = document.querySelector(`.sidebar-tab[data-tab="${tabName}"]`);
+        if (tab) tab.classList.add('active');
         document.getElementById(`panel-${tabName}`).classList.add('active');
     }
 
@@ -1655,18 +1499,10 @@
 
     function getState() {
         return JSON.stringify(placedElements.map(el => ({
-            id: el.id,
-            typeId: el.typeId,
-            name: el.name,
-            icon: el.icon,
-            width: el.width,
-            height: el.height,
-            color: el.color,
-            opacity: el.opacity,
-            rotation: el.rotation,
-            lat: el.lat,
-            lng: el.lng,
-            notes: el.notes
+            id: el.id, typeId: el.typeId, name: el.name, icon: el.icon,
+            width: el.width, height: el.height, color: el.color,
+            opacity: el.opacity, rotation: el.rotation,
+            lat: el.lat, lng: el.lng, notes: el.notes
         })));
     }
 
@@ -1681,48 +1517,19 @@
         lastState = state;
     }
 
-    function undoAction() {
-        if (undoStack.length < 2) return;
-        redoStack.push(undoStack.pop());
-        const state = undoStack[undoStack.length - 1];
-        restoreState(state);
-        lastState = state;
-    }
-
-    function redoAction() {
-        if (redoStack.length === 0) return;
-        const state = redoStack.pop();
-        undoStack.push(state);
-        restoreState(state);
-        lastState = state;
-    }
+    function undoAction() { if (undoStack.length < 2) return; redoStack.push(undoStack.pop()); const s = undoStack[undoStack.length - 1]; restoreState(s); lastState = s; }
+    function redoAction() { if (!redoStack.length) return; const s = redoStack.pop(); undoStack.push(s); restoreState(s); lastState = s; }
 
     function restoreState(stateStr) {
-        // Clear all elements
-        placedElements.forEach(el => {
-            if (el.layer) map.removeLayer(el.layer);
-            if (el.labelMarker) map.removeLayer(el.labelMarker);
+        placedElements.forEach(el => { if (el.layer) map.removeLayer(el.layer); if (el.labelMarker) map.removeLayer(el.labelMarker); });
+        placedElements = []; selectedElementId = null;
+        JSON.parse(stateStr).forEach(item => {
+            let tpl = null;
+            for (const cat of Object.values(elementLibrary)) { tpl = cat.items.find(t => t.id === item.typeId); if (tpl) break; }
+            if (!tpl) tpl = { id: item.typeId, name: item.name, icon: item.icon, width: item.width, height: item.height, color: item.color };
+            placeElement(tpl, L.latLng(item.lat, item.lng), item);
         });
-        placedElements = [];
-        selectedElementId = null;
-
-        const items = JSON.parse(stateStr);
-        items.forEach(item => {
-            // Find library template
-            let template = null;
-            for (const cat of Object.values(elementLibrary)) {
-                template = cat.items.find(t => t.id === item.typeId);
-                if (template) break;
-            }
-            if (!template) {
-                template = { id: item.typeId, name: item.name, icon: item.icon, width: item.width, height: item.height, color: item.color };
-            }
-
-            placeElement(template, L.latLng(item.lat, item.lng), item);
-        });
-
-        refreshElementsList();
-        updatePropsPanel();
+        refreshElementsList(); updatePropsPanel();
     }
 
     // ═══════════════════════════════════════════
@@ -1731,121 +1538,74 @@
 
     function exportXML() {
         const now = new Date().toISOString();
-        let xml = `<?xml version="1.0" encoding="UTF-8"?>\n`;
-        xml += `<FestivalPlan>\n`;
-        xml += `  <Meta>\n`;
-        xml += `    <Name>Festival Avenches</Name>\n`;
-        xml += `    <Location>Place du Casino, Avenches</Location>\n`;
-        xml += `    <CenterLat>${AVENCHES_CENTER[0]}</CenterLat>\n`;
-        xml += `    <CenterLng>${AVENCHES_CENTER[1]}</CenterLng>\n`;
-        xml += `    <Zoom>${map.getZoom()}</Zoom>\n`;
-        xml += `    <ExportDate>${now}</ExportDate>\n`;
-        xml += `  </Meta>\n`;
-        xml += `  <Elements>\n`;
+        let xml = `<?xml version="1.0" encoding="UTF-8"?>\n<FestivalPlan>\n  <Meta>\n`;
+        xml += `    <Name>Festival Avenches</Name>\n    <Location>Place du Casino, Avenches</Location>\n`;
+        xml += `    <CenterLat>${AVENCHES_CENTER[0]}</CenterLat>\n    <CenterLng>${AVENCHES_CENTER[1]}</CenterLng>\n`;
+        xml += `    <Zoom>${map.getZoom()}</Zoom>\n    <ExportDate>${now}</ExportDate>\n  </Meta>\n  <Elements>\n`;
 
         placedElements.forEach(el => {
             xml += `    <Element>\n`;
-            xml += `      <Id>${el.id}</Id>\n`;
-            xml += `      <TypeId>${el.typeId}</TypeId>\n`;
-            xml += `      <Name>${escapeXml(el.name)}</Name>\n`;
-            xml += `      <Icon>${el.icon}</Icon>\n`;
-            xml += `      <Width>${el.width}</Width>\n`;
-            xml += `      <Height>${el.height}</Height>\n`;
-            xml += `      <Color>${el.color}</Color>\n`;
-            xml += `      <Opacity>${el.opacity}</Opacity>\n`;
+            xml += `      <Id>${el.id}</Id>\n      <TypeId>${el.typeId}</TypeId>\n`;
+            xml += `      <Name>${escapeXml(el.name)}</Name>\n      <Icon>${el.icon}</Icon>\n`;
+            xml += `      <Width>${el.width}</Width>\n      <Height>${el.height}</Height>\n`;
+            xml += `      <Color>${el.color}</Color>\n      <Opacity>${el.opacity}</Opacity>\n`;
             xml += `      <Rotation>${el.rotation}</Rotation>\n`;
-            xml += `      <Lat>${el.lat}</Lat>\n`;
-            xml += `      <Lng>${el.lng}</Lng>\n`;
-            xml += `      <Notes>${escapeXml(el.notes || '')}</Notes>\n`;
-            xml += `    </Element>\n`;
+            xml += `      <Lat>${el.lat}</Lat>\n      <Lng>${el.lng}</Lng>\n`;
+            xml += `      <Notes>${escapeXml(el.notes || '')}</Notes>\n    </Element>\n`;
         });
 
-        xml += `  </Elements>\n`;
-
-        // Export custom library items
-        xml += `  <CustomLibrary>\n`;
+        xml += `  </Elements>\n  <CustomLibrary>\n`;
         for (const [catKey, cat] of Object.entries(elementLibrary)) {
             cat.items.forEach(item => {
                 if (item.custom) {
-                    xml += `    <CustomItem>\n`;
-                    xml += `      <Category>${catKey}</Category>\n`;
-                    xml += `      <Id>${item.id}</Id>\n`;
-                    xml += `      <Name>${escapeXml(item.name)}</Name>\n`;
-                    xml += `      <Icon>${item.icon}</Icon>\n`;
-                    xml += `      <Width>${item.width}</Width>\n`;
-                    xml += `      <Height>${item.height}</Height>\n`;
-                    xml += `      <Color>${item.color}</Color>\n`;
+                    xml += `    <CustomItem>\n      <Category>${catKey}</Category>\n`;
+                    xml += `      <Id>${item.id}</Id>\n      <Name>${escapeXml(item.name)}</Name>\n`;
+                    xml += `      <Icon>${item.icon}</Icon>\n      <Width>${item.width}</Width>\n`;
+                    xml += `      <Height>${item.height}</Height>\n      <Color>${item.color}</Color>\n`;
                     xml += `    </CustomItem>\n`;
                 }
             });
         }
-        xml += `  </CustomLibrary>\n`;
-        xml += `</FestivalPlan>`;
+        xml += `  </CustomLibrary>\n</FestivalPlan>`;
 
-        // Download
         const blob = new Blob([xml], { type: 'application/xml' });
         const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
+        const a = document.createElement('a'); a.href = url;
         a.download = `festival-avenches-${new Date().toISOString().slice(0, 10)}.xml`;
-        a.click();
-        URL.revokeObjectURL(url);
+        a.click(); URL.revokeObjectURL(url);
     }
 
-    function escapeXml(str) {
-        return str.replace(/&/g, '&amp;')
-                  .replace(/</g, '&lt;')
-                  .replace(/>/g, '&gt;')
-                  .replace(/"/g, '&quot;')
-                  .replace(/'/g, '&apos;');
+    function escapeXml(s) {
+        return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;').replace(/'/g, '&apos;');
     }
 
     // ═══════════════════════════════════════════
     //  IMPORT XML
     // ═══════════════════════════════════════════
 
-    function showImportModal() {
-        document.getElementById('import-modal').classList.add('active');
-        document.getElementById('import-xml-content').value = '';
-    }
-
-    function closeImportModal() {
-        document.getElementById('import-modal').classList.remove('active');
-    }
+    function showImportModal() { document.getElementById('import-modal').classList.add('active'); document.getElementById('import-xml-content').value = ''; }
+    function closeImportModal() { document.getElementById('import-modal').classList.remove('active'); }
 
     function loadXMLFile(event) {
-        const file = event.target.files[0];
-        if (!file) return;
+        const file = event.target.files[0]; if (!file) return;
         const reader = new FileReader();
-        reader.onload = (e) => {
-            document.getElementById('import-xml-content').value = e.target.result;
-        };
+        reader.onload = (e) => { document.getElementById('import-xml-content').value = e.target.result; };
         reader.readAsText(file);
     }
 
     function importXML() {
         const xmlStr = document.getElementById('import-xml-content').value.trim();
         if (!xmlStr) return alert('Veuillez coller ou charger du XML.');
-
         try {
             const parser = new DOMParser();
             const doc = parser.parseFromString(xmlStr, 'application/xml');
+            if (doc.querySelector('parsererror')) throw new Error('XML invalide');
 
-            const parseError = doc.querySelector('parsererror');
-            if (parseError) throw new Error('XML invalide');
+            placedElements.forEach(el => { if (el.layer) map.removeLayer(el.layer); if (el.labelMarker) map.removeLayer(el.labelMarker); });
+            placedElements = []; selectedElementId = null; nextId = 1;
 
-            // Clear current
-            placedElements.forEach(el => {
-                if (el.layer) map.removeLayer(el.layer);
-                if (el.labelMarker) map.removeLayer(el.labelMarker);
-            });
-            placedElements = [];
-            selectedElementId = null;
-            nextId = 1;
-
-            // Import custom library items first
-            const customItems = doc.querySelectorAll('CustomLibrary > CustomItem');
-            customItems.forEach(ci => {
+            doc.querySelectorAll('CustomLibrary > CustomItem').forEach(ci => {
                 const catKey = ci.querySelector('Category')?.textContent || 'divers';
                 const item = {
                     id: ci.querySelector('Id')?.textContent || `custom_${Date.now()}`,
@@ -1856,18 +1616,12 @@
                     color: ci.querySelector('Color')?.textContent || '#3498db',
                     custom: true
                 };
-                if (elementLibrary[catKey]) {
-                    // Avoid duplicates
-                    if (!elementLibrary[catKey].items.find(i => i.id === item.id)) {
-                        elementLibrary[catKey].items.push(item);
-                    }
-                }
+                if (elementLibrary[catKey] && !elementLibrary[catKey].items.find(i => i.id === item.id))
+                    elementLibrary[catKey].items.push(item);
             });
             buildLibraryUI();
 
-            // Import elements
-            const elements = doc.querySelectorAll('Elements > Element');
-            elements.forEach(elem => {
+            doc.querySelectorAll('Elements > Element').forEach(elem => {
                 const id = parseInt(elem.querySelector('Id')?.textContent || 0);
                 const typeId = elem.querySelector('TypeId')?.textContent || '';
                 const name = elem.querySelector('Name')?.textContent || 'Sans nom';
@@ -1881,32 +1635,19 @@
                 const lng = parseFloat(elem.querySelector('Lng')?.textContent || AVENCHES_CENTER[1]);
                 const notes = elem.querySelector('Notes')?.textContent || '';
 
-                const template = { id: typeId, name, icon, width, height, color };
-                const restoreData = { id, typeId, name, icon, width, height, color, opacity, rotation, notes };
-
-                placeElement(template, L.latLng(lat, lng), restoreData);
+                placeElement({ id: typeId, name, icon, width, height, color }, L.latLng(lat, lng),
+                    { id, typeId, name, icon, width, height, color, opacity, rotation, notes });
                 if (id >= nextId) nextId = id + 1;
             });
 
-            // Set view from meta
-            const zoom = doc.querySelector('Meta > Zoom');
-            const centerLat = doc.querySelector('Meta > CenterLat');
-            const centerLng = doc.querySelector('Meta > CenterLng');
-            if (zoom && centerLat && centerLng) {
-                map.setView(
-                    [parseFloat(centerLat.textContent), parseFloat(centerLng.textContent)],
-                    parseInt(zoom.textContent)
-                );
-            }
+            const z = doc.querySelector('Meta > Zoom');
+            const cLat = doc.querySelector('Meta > CenterLat');
+            const cLng = doc.querySelector('Meta > CenterLng');
+            if (z && cLat && cLng) map.setView([parseFloat(cLat.textContent), parseFloat(cLng.textContent)], parseInt(z.textContent));
 
-            undoStack = [getState()];
-            lastState = undoStack[0];
-
-            closeImportModal();
-            refreshElementsList();
-        } catch (err) {
-            alert('Erreur lors de l\'import: ' + err.message);
-        }
+            undoStack = [getState()]; lastState = undoStack[0];
+            closeImportModal(); refreshElementsList();
+        } catch (err) { alert('Erreur import: ' + err.message); }
     }
 
     // ═══════════════════════════════════════════
@@ -1921,10 +1662,7 @@
         document.getElementById('custom-height').value = 3;
         document.getElementById('custom-color').value = '#3498db';
     }
-
-    function closeCustomElementModal() {
-        document.getElementById('custom-element-modal').classList.remove('active');
-    }
+    function closeCustomElementModal() { document.getElementById('custom-element-modal').classList.remove('active'); }
 
     function addCustomElement() {
         const name = document.getElementById('custom-name').value.trim();
@@ -1933,16 +1671,9 @@
         const height = parseFloat(document.getElementById('custom-height').value) || 3;
         const color = document.getElementById('custom-color').value;
         const category = document.getElementById('custom-category').value;
-
         if (!name) return alert('Veuillez entrer un nom.');
-
-        const id = `custom_${Date.now()}`;
-        const item = { id, name, icon, width, height, color, custom: true };
-
-        if (elementLibrary[category]) {
-            elementLibrary[category].items.push(item);
-        }
-
+        if (elementLibrary[category])
+            elementLibrary[category].items.push({ id: `custom_${Date.now()}`, name, icon, width, height, color, custom: true });
         buildLibraryUI();
         closeCustomElementModal();
     }
@@ -1951,182 +1682,95 @@
     //  PDF EXPORT
     // ═══════════════════════════════════════════
 
-    function exportPDF() {
-        document.getElementById('pdf-modal').classList.add('active');
-    }
-
-    function closePdfModal() {
-        document.getElementById('pdf-modal').classList.remove('active');
-    }
+    function exportPDF() { document.getElementById('pdf-modal').classList.add('active'); }
+    function closePdfModal() { document.getElementById('pdf-modal').classList.remove('active'); }
 
     async function generatePDF() {
         closePdfModal();
-
         const title = document.getElementById('pdf-title').value || 'Plan Festival';
         const format = document.getElementById('pdf-format').value;
         const orientation = document.getElementById('pdf-orientation').value;
         const includeLegend = document.getElementById('pdf-legend').checked;
 
-        // Show loading
         const loadingEl = document.createElement('div');
         loadingEl.className = 'pdf-generating';
-        loadingEl.innerHTML = '<div class="spinner"></div> Génération du PDF en cours...';
+        loadingEl.innerHTML = '<div class="spinner"></div> Génération du PDF...';
         document.body.appendChild(loadingEl);
 
         try {
-            // Wait a frame for the loading to render
             await new Promise(r => setTimeout(r, 100));
-
-            // Hide toolbar and UI overlays for capture
             const toolbar = document.querySelector('.map-toolbar');
-            const scaleInfo = document.getElementById('scale-info');
-            const measureInfo = document.getElementById('measure-info');
-            const zoomControl = document.querySelector('.leaflet-control-zoom');
+            const zoomCtrl = document.querySelector('.leaflet-control-zoom');
             toolbar.style.display = 'none';
-            if (zoomControl) zoomControl.style.display = 'none';
+            if (zoomCtrl) zoomCtrl.style.display = 'none';
 
-            // Capture the map
-            const mapContainer = document.getElementById('map');
-            const canvas = await html2canvas(mapContainer, {
-                useCORS: true,
-                allowTaint: true,
-                scale: 2,
-                logging: false,
-                backgroundColor: '#1a1a2e'
+            const canvas = await html2canvas(document.getElementById('map'), {
+                useCORS: true, allowTaint: true, scale: 2, logging: false, backgroundColor: '#1a1a2e'
             });
 
-            // Restore hidden elements
             toolbar.style.display = '';
-            if (zoomControl) zoomControl.style.display = '';
+            if (zoomCtrl) zoomCtrl.style.display = '';
 
-            // Create PDF
             const { jsPDF } = window.jspdf;
-            const pdf = new jsPDF({
-                orientation: orientation,
-                unit: 'mm',
-                format: format
-            });
+            const pdf = new jsPDF({ orientation, unit: 'mm', format });
+            const pw = pdf.internal.pageSize.getWidth();
+            const ph = pdf.internal.pageSize.getHeight();
+            const m = 10;
 
-            const pageWidth = pdf.internal.pageSize.getWidth();
-            const pageHeight = pdf.internal.pageSize.getHeight();
-            const margin = 10;
+            pdf.setFillColor(22, 33, 62); pdf.rect(0, 0, pw, 18, 'F');
+            pdf.setTextColor(255, 255, 255); pdf.setFontSize(14); pdf.setFont(undefined, 'bold');
+            pdf.text(title, m, 12);
+            pdf.setFontSize(9); pdf.setFont(undefined, 'normal');
+            const ds = new Date().toLocaleDateString('fr-CH', { day: '2-digit', month: 'long', year: 'numeric' });
+            pdf.text(`Place du Casino, Avenches | ${ds}`, pw - m, 12, { align: 'right' });
 
-            // Title bar
-            pdf.setFillColor(22, 33, 62);
-            pdf.rect(0, 0, pageWidth, 18, 'F');
-            pdf.setTextColor(255, 255, 255);
-            pdf.setFontSize(14);
-            pdf.setFont(undefined, 'bold');
-            pdf.text(title, margin, 12);
-
-            // Date and location
-            pdf.setFontSize(9);
-            pdf.setFont(undefined, 'normal');
-            const dateStr = new Date().toLocaleDateString('fr-CH', { day: '2-digit', month: 'long', year: 'numeric' });
-            pdf.text(`Place du Casino, Avenches | ${dateStr}`, pageWidth - margin, 12, { align: 'right' });
-
-            // Map image
             const mapY = 22;
-            const legendHeight = includeLegend ? 40 : 0;
-            const availableHeight = pageHeight - mapY - margin - legendHeight;
-            const availableWidth = pageWidth - margin * 2;
+            const lH = includeLegend ? 40 : 0;
+            const aH = ph - mapY - m - lH;
+            const aW = pw - m * 2;
+            const ratio = canvas.width / canvas.height;
+            let iW = aW, iH = iW / ratio;
+            if (iH > aH) { iH = aH; iW = iH * ratio; }
+            const iX = m + (aW - iW) / 2;
 
-            const canvasRatio = canvas.width / canvas.height;
-            let imgWidth = availableWidth;
-            let imgHeight = imgWidth / canvasRatio;
+            pdf.setDrawColor(42, 42, 74); pdf.setLineWidth(0.5); pdf.rect(iX, mapY, iW, iH, 'S');
+            pdf.addImage(canvas.toDataURL('image/png'), 'PNG', iX, mapY, iW, iH);
 
-            if (imgHeight > availableHeight) {
-                imgHeight = availableHeight;
-                imgWidth = imgHeight * canvasRatio;
-            }
+            const ctr = map.getCenter(); const z = map.getZoom();
+            const mpp = 156543.03392 * Math.cos(ctr.lat * Math.PI / 180) / Math.pow(2, z);
+            pdf.setFontSize(7); pdf.setTextColor(200, 200, 200);
+            pdf.text(`Zoom: ${z} | ~${mpp.toFixed(2)} m/px`, iX + iW - 2, mapY + iH - 2, { align: 'right' });
 
-            const imgX = margin + (availableWidth - imgWidth) / 2;
-            const imgData = canvas.toDataURL('image/png');
-
-            // Map border
-            pdf.setDrawColor(42, 42, 74);
-            pdf.setLineWidth(0.5);
-            pdf.rect(imgX, mapY, imgWidth, imgHeight, 'S');
-
-            pdf.addImage(imgData, 'PNG', imgX, mapY, imgWidth, imgHeight);
-
-            // Scale bar on map
-            const center = map.getCenter();
-            const zoom = map.getZoom();
-            const metersPerPixel = 156543.03392 * Math.cos(center.lat * Math.PI / 180) / Math.pow(2, zoom);
-            pdf.setFontSize(7);
-            pdf.setTextColor(200, 200, 200);
-            pdf.text(`Zoom: ${zoom} | ~${metersPerPixel.toFixed(2)} m/px`, imgX + imgWidth - 2, mapY + imgHeight - 2, { align: 'right' });
-
-            // Legend
             if (includeLegend && placedElements.length > 0) {
-                const legendY = mapY + imgHeight + 6;
-                pdf.setFillColor(22, 33, 62);
-                pdf.rect(margin, legendY - 2, pageWidth - margin * 2, legendHeight, 'F');
-
-                pdf.setTextColor(255, 255, 255);
-                pdf.setFontSize(10);
-                pdf.setFont(undefined, 'bold');
-                pdf.text('Légende des éléments', margin + 4, legendY + 5);
-
-                pdf.setFontSize(7);
-                pdf.setFont(undefined, 'normal');
-
-                const cols = 4;
-                const colWidth = (pageWidth - margin * 2 - 8) / cols;
-                let col = 0;
-                let row = 0;
-
-                // Deduplicate by typeId
-                const seen = new Set();
-                const legendItems = [];
+                const ly = mapY + iH + 6;
+                pdf.setFillColor(22, 33, 62); pdf.rect(m, ly - 2, pw - m * 2, lH, 'F');
+                pdf.setTextColor(255, 255, 255); pdf.setFontSize(10); pdf.setFont(undefined, 'bold');
+                pdf.text('Légende', m + 4, ly + 5);
+                pdf.setFontSize(7); pdf.setFont(undefined, 'normal');
+                const cols = 4; const cW = (pw - m * 2 - 8) / cols;
+                let col = 0, row = 0;
+                const seen = new Set(); const items = [];
                 placedElements.forEach(el => {
-                    const key = el.typeId + '_' + el.name;
-                    if (!seen.has(key)) {
-                        seen.add(key);
-                        const count = placedElements.filter(e => e.typeId === el.typeId && e.name === el.name).length;
-                        legendItems.push({ ...el, count });
-                    }
+                    const k = el.typeId + '_' + el.name;
+                    if (!seen.has(k)) { seen.add(k); items.push({ ...el, count: placedElements.filter(e => e.typeId === el.typeId && e.name === el.name).length }); }
                 });
-
-                legendItems.forEach((item, i) => {
-                    const x = margin + 4 + col * colWidth;
-                    const y = legendY + 12 + row * 6;
-
-                    // Color dot
-                    const hex = item.color;
-                    const r = parseInt(hex.slice(1, 3), 16);
-                    const g = parseInt(hex.slice(3, 5), 16);
-                    const b = parseInt(hex.slice(5, 7), 16);
-                    pdf.setFillColor(r, g, b);
+                items.forEach(it => {
+                    const x = m + 4 + col * cW, y = ly + 12 + row * 6;
+                    const hex = it.color;
+                    pdf.setFillColor(parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16), parseInt(hex.slice(5, 7), 16));
                     pdf.circle(x + 2, y - 1, 1.5, 'F');
-
-                    // Text
                     pdf.setTextColor(224, 224, 224);
-                    const label = `${item.name} (${item.width}x${item.height}m)`;
-                    const countStr = item.count > 1 ? ` x${item.count}` : '';
-                    pdf.text(label + countStr, x + 6, y);
-
-                    col++;
-                    if (col >= cols) { col = 0; row++; }
+                    pdf.text(`${it.name} (${it.width}x${it.height}m)${it.count > 1 ? ' x' + it.count : ''}`, x + 6, y);
+                    col++; if (col >= cols) { col = 0; row++; }
                 });
             }
 
-            // Footer
-            pdf.setFontSize(6);
-            pdf.setTextColor(120, 120, 140);
-            pdf.text('AoA - Festival Layout Planner | Généré automatiquement', margin, pageHeight - 4);
-            pdf.text(`${dateStr}`, pageWidth - margin, pageHeight - 4, { align: 'right' });
-
-            // Download
+            pdf.setFontSize(6); pdf.setTextColor(120, 120, 140);
+            pdf.text('AoA - Festival Layout Planner', m, ph - 4);
+            pdf.text(ds, pw - m, ph - 4, { align: 'right' });
             pdf.save(`${title.replace(/\s+/g, '-').toLowerCase()}-${new Date().toISOString().slice(0, 10)}.pdf`);
-
-        } catch (err) {
-            console.error('PDF export error:', err);
-            alert('Erreur lors de la génération du PDF: ' + err.message);
-        } finally {
-            loadingEl.remove();
-        }
+        } catch (err) { console.error(err); alert('Erreur PDF: ' + err.message); }
+        finally { loadingEl.remove(); }
     }
 
     // ═══════════════════════════════════════════
@@ -2134,82 +1778,54 @@
     // ═══════════════════════════════════════════
 
     document.addEventListener('keydown', (e) => {
-        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+        if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return;
 
-        if (e.key === 'Delete' || e.key === 'Backspace') {
-            if (selectedElementId !== null) {
-                deleteSelected();
-            }
-        }
-
-        if (e.ctrlKey && e.key === 'z') {
-            e.preventDefault();
-            undoAction();
-        }
-
-        if (e.ctrlKey && e.key === 'y') {
-            e.preventDefault();
-            redoAction();
-        }
+        if ((e.key === 'Delete' || e.key === 'Backspace') && selectedElementId !== null) deleteSelected();
+        if (e.ctrlKey && e.key === 'z') { e.preventDefault(); undoAction(); }
+        if (e.ctrlKey && e.key === 'y') { e.preventDefault(); redoAction(); }
 
         if (e.key === 'Escape') {
-            if (measureMode) {
-                toggleMeasureMode();
-                return;
-            }
+            if (measureMode) { toggleMeasureMode(); return; }
             deselectAll();
-            if (placementItem) {
-                document.getElementById('map').classList.remove('placement-mode');
-                placementItem = null;
-            }
+            if (placementItem) { document.getElementById('map').classList.remove('placement-mode'); placementItem = null; hideMeasureInfo(); }
+            if (isMobile()) closeSidebar();
         }
 
-        // Toggle grid
-        if (e.key === 'g' || e.key === 'G') {
-            toggleGrid();
-        }
+        if (e.key === 'g' || e.key === 'G') toggleGrid();
+        if (e.key === 's' || e.key === 'S') toggleSnap();
+        if (e.key === 'm' || e.key === 'M') toggleMeasureMode();
 
-        // Toggle snap
-        if (e.key === 's' || e.key === 'S') {
-            toggleSnap();
-        }
-
-        // Toggle measure
-        if (e.key === 'm' || e.key === 'M') {
-            toggleMeasureMode();
-        }
-
-        // Rotate selected element
         if (selectedElementId !== null) {
-            const el = placedElements.find(e => e.id === selectedElementId);
+            const el = placedElements.find(x => x.id === selectedElementId);
             if (!el) return;
-
             if (e.key === 'r' || e.key === 'R') {
                 el.rotation = (el.rotation + (e.shiftKey ? 1 : 15)) % 360;
-                updateElementVisual(el);
-                updatePropsPanel();
-                saveUndo();
+                updateElementVisual(el); updatePropsPanel(); saveUndo();
             }
-
-            // Nudge with arrow keys
-            const nudge = e.shiftKey ? 0.5 : 0.1; // meters
+            const nudge = e.shiftKey ? 0.5 : 0.1;
             const off = metersToLatLng(el.lat, nudge);
             let moved = false;
             if (e.key === 'ArrowUp') { e.preventDefault(); el.lat += off.lat; moved = true; }
             if (e.key === 'ArrowDown') { e.preventDefault(); el.lat -= off.lat; moved = true; }
             if (e.key === 'ArrowLeft') { e.preventDefault(); el.lng -= off.lng; moved = true; }
             if (e.key === 'ArrowRight') { e.preventDefault(); el.lng += off.lng; moved = true; }
-
             if (moved) {
-                if (snapEnabled) {
-                    const snapped = snapToGrid(L.latLng(el.lat, el.lng));
-                    el.lat = snapped.lat;
-                    el.lng = snapped.lng;
-                }
-                updateElementVisual(el);
-                updatePropsPanel();
-                saveUndo();
+                if (snapEnabled) { const s = snapToGrid(L.latLng(el.lat, el.lng)); el.lat = s.lat; el.lng = s.lng; }
+                updateElementVisual(el); updatePropsPanel(); saveUndo();
             }
+        }
+    });
+
+    // ═══════════════════════════════════════════
+    //  WINDOW RESIZE
+    // ═══════════════════════════════════════════
+
+    window.addEventListener('resize', () => {
+        map.invalidateSize();
+        if (!isMobile()) {
+            closeSidebar();
+            document.getElementById('sidebar').classList.remove('open');
+            document.getElementById('sidebar-backdrop').classList.remove('visible');
         }
     });
 
@@ -2218,7 +1834,13 @@
     // ═══════════════════════════════════════════
 
     buildLibraryUI();
-    saveUndo(); // Initial empty state
+    saveUndo();
+
+    // On mobile, start with map visible
+    if (isMobile()) {
+        closeSidebar();
+        map.invalidateSize();
+    }
 
     </script>
 </body>
