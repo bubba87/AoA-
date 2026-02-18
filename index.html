@@ -592,6 +592,8 @@
                     <option value="5">5m</option>
                     <option value="10">10m</option>
                 </select>
+                <input type="range" id="grid-angle" min="0" max="180" step="5" value="45" oninput="updateGridAngle()" title="Angle de la grille" style="width:60px; height:24px; vertical-align:middle; cursor:pointer;">
+                <span id="grid-angle-label" style="font-size:11px; color:var(--color-text-light); min-width:28px;">45°</span>
                 <div class="separator"></div>
                 <button class="btn" id="btn-snap" onclick="toggleSnap()" title="Snap (S)">&#9898; <span class="toolbar-label">Snap</span></button>
                 <div class="separator"></div>
@@ -824,6 +826,7 @@
     let gridVisible = false;
     let snapEnabled = false;
     let gridSizeMeters = 1;
+    let gridAngleDeg = 45;
     let gridLayer = null;
     let measureMode = false;
     let measurePoints = [];
@@ -1006,8 +1009,55 @@
         if (gridVisible) refreshGrid();
     }
 
+    function updateGridAngle() {
+        gridAngleDeg = parseFloat(document.getElementById('grid-angle').value);
+        document.getElementById('grid-angle-label').textContent = gridAngleDeg + '°';
+        if (gridVisible) refreshGrid();
+    }
+
     function removeGrid() {
         if (gridLayer) { map.removeLayer(gridLayer); gridLayer = null; }
+    }
+
+    // Generate grid lines for a given angle, returns array of {pA, pB, major}
+    // Works in screen pixel coordinates, angle in radians CCW from horizontal
+    function computeGridLines(pixelSpacing, angleDeg, left, top, right, bottom) {
+        const theta = angleDeg * Math.PI / 180;
+        const sinT = Math.sin(theta), cosT = Math.cos(theta);
+        const ext = Math.sqrt((right - left) ** 2 + (bottom - top) ** 2);
+        const corners = [[left, top], [right, top], [right, bottom], [left, bottom]];
+        const result = [];
+
+        // Two sets of parallel lines, perpendicular to each other
+        // Set 1: normal = (sinθ, cosθ), equation: x·sinθ + y·cosθ = c
+        // Set 2: normal = (cosθ, -sinθ), equation: x·cosθ - y·sinθ = c
+        for (let set = 0; set < 2; set++) {
+            const nx = set === 0 ? sinT : cosT;
+            const ny = set === 0 ? cosT : -sinT;
+            const dx = set === 0 ? cosT : -sinT; // line direction
+            const dy = set === 0 ? -sinT : -cosT;
+
+            // Find c range from corners
+            const cVals = corners.map(([x, y]) => x * nx + y * ny);
+            const cMin = Math.min(...cVals) - pixelSpacing;
+            const cMax = Math.max(...cVals) + pixelSpacing;
+            const cStart = Math.floor(cMin / pixelSpacing) * pixelSpacing;
+
+            const nLines = Math.ceil((cMax - cStart) / pixelSpacing) + 1;
+            if (nLines > 250) continue; // safety
+
+            let idx = 0;
+            for (let c = cStart; c <= cMax; c += pixelSpacing, idx++) {
+                // Point on line: (c·nx, c·ny), extend along direction ±ext
+                const cx = c * nx, cy = c * ny;
+                result.push({
+                    ax: cx - ext * dx, ay: cy - ext * dy,
+                    bx: cx + ext * dx, by: cy + ext * dy,
+                    major: idx % 5 === 0
+                });
+            }
+        }
+        return result;
     }
 
     function refreshGrid() {
@@ -1024,44 +1074,18 @@
         const bounds = map.getBounds();
         const nw = map.latLngToContainerPoint(bounds.getNorthWest());
         const se = map.latLngToContainerPoint(bounds.getSouthEast());
-        const left = nw.x, top = nw.y, right = se.x, bottom = se.y;
-        const ext = Math.max(right - left, bottom - top);
 
-        // For 45° lines, perpendicular spacing = pixelSpacing
-        // step in (x+y) or (y-x) = pixelSpacing * sqrt(2)
-        const step = pixelSpacing * Math.SQRT2;
-
-        // Set 1: lines along direction (1,-1) — NE-SW on screen — equation: x + y = c
-        const cMin1 = left + top - ext;
-        const cMax1 = right + bottom + ext;
-        const c1Start = Math.floor(cMin1 / step) * step;
-
-        // Set 2: lines along direction (1,1) — NW-SE on screen — equation: y - x = c
-        const cMin2 = top - right - ext;
-        const cMax2 = bottom - left + ext;
-        const c2Start = Math.floor(cMin2 / step) * step;
-
-        const n1 = Math.ceil((cMax1 - c1Start) / step) + 1;
-        const n2 = Math.ceil((cMax2 - c2Start) / step) + 1;
-        if (n1 + n2 > 400) { gridLayer = L.layerGroup().addTo(map); return; }
+        const gridLines = computeGridLines(pixelSpacing, gridAngleDeg, nw.x, nw.y, se.x, se.y);
+        if (gridLines.length > 500) { gridLayer = L.layerGroup().addTo(map); return; }
 
         const lines = [];
         const style = { color: 'rgba(231, 76, 60, 0.35)', weight: 1, interactive: false, pane: 'gridPane' };
         const styleMajor = { color: 'rgba(231, 76, 60, 0.6)', weight: 1.5, interactive: false, pane: 'gridPane' };
 
-        // Set 1: x + y = c  →  y = c - x
-        let idx = 0;
-        for (let c = c1Start; c <= cMax1; c += step, idx++) {
-            const llA = map.containerPointToLatLng([left - ext, c - (left - ext)]);
-            const llB = map.containerPointToLatLng([right + ext, c - (right + ext)]);
-            lines.push(L.polyline([llA, llB], idx % 5 === 0 ? styleMajor : style));
-        }
-        // Set 2: y - x = c  →  y = c + x
-        idx = 0;
-        for (let c = c2Start; c <= cMax2; c += step, idx++) {
-            const llA = map.containerPointToLatLng([left - ext, c + (left - ext)]);
-            const llB = map.containerPointToLatLng([right + ext, c + (right + ext)]);
-            lines.push(L.polyline([llA, llB], idx % 5 === 0 ? styleMajor : style));
+        for (const gl of gridLines) {
+            const llA = map.containerPointToLatLng([gl.ax, gl.ay]);
+            const llB = map.containerPointToLatLng([gl.bx, gl.by]);
+            lines.push(L.polyline([llA, llB], gl.major ? styleMajor : style));
         }
 
         gridLayer = L.layerGroup(lines).addTo(map);
@@ -1993,44 +2017,17 @@
         const se = map.latLngToContainerPoint(bounds.getSouthEast());
         const mapPxW = se.x - nw.x, mapPxH = se.y - nw.y;
 
-        // Convert pixel coords to PDF mm
-        function pxToPdf(px, py) {
-            return [iX + ((px - nw.x) / mapPxW) * iW, mapY + ((py - nw.y) / mapPxH) * iH];
-        }
+        // Compute grid in pixel space using shared function
+        const gridLines = computeGridLines(pixelSpacing, gridAngleDeg, nw.x, nw.y, se.x, se.y);
 
-        const step = pixelSpacing * Math.SQRT2;
-        const left = nw.x, top = nw.y, right = se.x, bottom = se.y;
-        const ext = Math.max(mapPxW, mapPxH);
-
-        const cMin1 = left + top - ext, cMax1 = right + bottom + ext;
-        const c1Start = Math.floor(cMin1 / step) * step;
-        const cMin2 = top - right - ext, cMax2 = bottom - left + ext;
-        const c2Start = Math.floor(cMin2 / step) * step;
-
-        // Set 1: x + y = c
-        let idx = 0;
-        for (let c = c1Start; c <= cMax1; c += step, idx++) {
-            const ax = left - ext, ay = c - (left - ext);
-            const bx = right + ext, by = c - (right + ext);
-            const pa = pxToPdf(ax, ay), pb = pxToPdf(bx, by);
+        // Convert pixel coords to PDF mm and draw
+        for (const gl of gridLines) {
+            const pa = [iX + ((gl.ax - nw.x) / mapPxW) * iW, mapY + ((gl.ay - nw.y) / mapPxH) * iH];
+            const pb = [iX + ((gl.bx - nw.x) / mapPxW) * iW, mapY + ((gl.by - nw.y) / mapPxH) * iH];
             const seg = clipLineToRect(pa[0], pa[1], pb[0], pb[1], iX, mapY, iX + iW, mapY + iH);
             if (!seg) continue;
-            const major = idx % 5 === 0;
-            pdf.setDrawColor(major ? 200 : 230, major ? 60 : 140, major ? 50 : 130);
-            pdf.setLineWidth(major ? 0.3 : 0.12);
-            pdf.line(seg[0], seg[1], seg[2], seg[3]);
-        }
-        // Set 2: y - x = c
-        idx = 0;
-        for (let c = c2Start; c <= cMax2; c += step, idx++) {
-            const ax = left - ext, ay = c + (left - ext);
-            const bx = right + ext, by = c + (right + ext);
-            const pa = pxToPdf(ax, ay), pb = pxToPdf(bx, by);
-            const seg = clipLineToRect(pa[0], pa[1], pb[0], pb[1], iX, mapY, iX + iW, mapY + iH);
-            if (!seg) continue;
-            const major = idx % 5 === 0;
-            pdf.setDrawColor(major ? 200 : 230, major ? 60 : 140, major ? 50 : 130);
-            pdf.setLineWidth(major ? 0.3 : 0.12);
+            pdf.setDrawColor(gl.major ? 200 : 230, gl.major ? 60 : 140, gl.major ? 50 : 130);
+            pdf.setLineWidth(gl.major ? 0.3 : 0.12);
             pdf.line(seg[0], seg[1], seg[2], seg[3]);
         }
     }
