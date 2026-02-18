@@ -1012,34 +1012,56 @@
 
     function refreshGrid() {
         removeGrid();
-        const bounds = map.getBounds();
         const center = map.getCenter();
         const off = metersToLatLng(center.lat, gridSizeMeters);
-        const south = bounds.getSouth(), north = bounds.getNorth();
-        const west = bounds.getWest(), east = bounds.getEast();
-        const startLat = Math.floor(south / off.lat) * off.lat;
-        const endLat = Math.ceil(north / off.lat) * off.lat;
-        const startLng = Math.floor(west / off.lng) * off.lng;
-        const endLng = Math.ceil(east / off.lng) * off.lng;
 
-        const latCount = Math.round((endLat - startLat) / off.lat);
-        const lngCount = Math.round((endLng - startLng) / off.lng);
-        if (latCount > 200 || lngCount > 200) { gridLayer = L.layerGroup().addTo(map); return; }
+        // Grid spacing in pixels
+        const p1 = map.latLngToContainerPoint(center);
+        const p2 = map.latLngToContainerPoint([center.lat + off.lat, center.lng]);
+        const pixelSpacing = Math.abs(p1.y - p2.y);
+        if (pixelSpacing < 3) { gridLayer = L.layerGroup().addTo(map); return; }
+
+        const bounds = map.getBounds();
+        const nw = map.latLngToContainerPoint(bounds.getNorthWest());
+        const se = map.latLngToContainerPoint(bounds.getSouthEast());
+        const left = nw.x, top = nw.y, right = se.x, bottom = se.y;
+        const ext = Math.max(right - left, bottom - top);
+
+        // For 45° lines, perpendicular spacing = pixelSpacing
+        // step in (x+y) or (y-x) = pixelSpacing * sqrt(2)
+        const step = pixelSpacing * Math.SQRT2;
+
+        // Set 1: lines along direction (1,-1) — NE-SW on screen — equation: x + y = c
+        const cMin1 = left + top - ext;
+        const cMax1 = right + bottom + ext;
+        const c1Start = Math.floor(cMin1 / step) * step;
+
+        // Set 2: lines along direction (1,1) — NW-SE on screen — equation: y - x = c
+        const cMin2 = top - right - ext;
+        const cMax2 = bottom - left + ext;
+        const c2Start = Math.floor(cMin2 / step) * step;
+
+        const n1 = Math.ceil((cMax1 - c1Start) / step) + 1;
+        const n2 = Math.ceil((cMax2 - c2Start) / step) + 1;
+        if (n1 + n2 > 400) { gridLayer = L.layerGroup().addTo(map); return; }
 
         const lines = [];
-        const style = { color: 'rgba(231, 76, 60, 0.4)', weight: 1, interactive: false, pane: 'gridPane' };
-        const styleMajor = { color: 'rgba(231, 76, 60, 0.65)', weight: 1.5, interactive: false, pane: 'gridPane' };
-        const majorEvery = 5; // ligne plus visible toutes les 5 cellules
+        const style = { color: 'rgba(231, 76, 60, 0.35)', weight: 1, interactive: false, pane: 'gridPane' };
+        const styleMajor = { color: 'rgba(231, 76, 60, 0.6)', weight: 1.5, interactive: false, pane: 'gridPane' };
 
-        let latIdx = 0;
-        for (let lat = startLat; lat <= endLat; lat += off.lat) {
-            lines.push(L.polyline([[lat, west], [lat, east]], latIdx % majorEvery === 0 ? styleMajor : style));
-            latIdx++;
+        // Set 1: x + y = c  →  y = c - x
+        let idx = 0;
+        for (let c = c1Start; c <= cMax1; c += step, idx++) {
+            const llA = map.containerPointToLatLng([left - ext, c - (left - ext)]);
+            const llB = map.containerPointToLatLng([right + ext, c - (right + ext)]);
+            lines.push(L.polyline([llA, llB], idx % 5 === 0 ? styleMajor : style));
         }
-        let lngIdx = 0;
-        for (let lng = startLng; lng <= endLng; lng += off.lng) {
-            lines.push(L.polyline([[south, lng], [north, lng]], lngIdx % majorEvery === 0 ? styleMajor : style));
-            lngIdx++;
+        // Set 2: y - x = c  →  y = c + x
+        idx = 0;
+        for (let c = c2Start; c <= cMax2; c += step, idx++) {
+            const llA = map.containerPointToLatLng([left - ext, c + (left - ext)]);
+            const llB = map.containerPointToLatLng([right + ext, c + (right + ext)]);
+            lines.push(L.polyline([llA, llB], idx % 5 === 0 ? styleMajor : style));
         }
 
         gridLayer = L.layerGroup(lines).addTo(map);
@@ -1932,6 +1954,87 @@
     //  PDF EXPORT
     // ═══════════════════════════════════════════
 
+    // Clip a line segment to a rectangle, returns null if fully outside
+    function clipLineToRect(x1, y1, x2, y2, xmin, ymin, xmax, ymax) {
+        // Cohen-Sutherland simplified for our use case
+        function code(x, y) {
+            let c = 0;
+            if (x < xmin) c |= 1; else if (x > xmax) c |= 2;
+            if (y < ymin) c |= 4; else if (y > ymax) c |= 8;
+            return c;
+        }
+        let c1 = code(x1, y1), c2 = code(x2, y2);
+        for (let i = 0; i < 10; i++) {
+            if (!(c1 | c2)) return [x1, y1, x2, y2];
+            if (c1 & c2) return null;
+            const c = c1 || c2;
+            let x, y;
+            if (c & 8) { x = x1 + (x2 - x1) * (ymax - y1) / (y2 - y1); y = ymax; }
+            else if (c & 4) { x = x1 + (x2 - x1) * (ymin - y1) / (y2 - y1); y = ymin; }
+            else if (c & 2) { y = y1 + (y2 - y1) * (xmax - x1) / (x2 - x1); x = xmax; }
+            else { y = y1 + (y2 - y1) * (xmin - x1) / (x2 - x1); x = xmin; }
+            if (c === c1) { x1 = x; y1 = y; c1 = code(x, y); }
+            else { x2 = x; y2 = y; c2 = code(x, y); }
+        }
+        return null;
+    }
+
+    function drawGridOnPdf(pdf, iX, mapY, iW, iH) {
+        const center = map.getCenter();
+        const off = metersToLatLng(center.lat, gridSizeMeters);
+        const p1 = map.latLngToContainerPoint(center);
+        const p2 = map.latLngToContainerPoint([center.lat + off.lat, center.lng]);
+        const pixelSpacing = Math.abs(p1.y - p2.y);
+        if (pixelSpacing < 2) return;
+
+        // Map pixel bounds
+        const bounds = map.getBounds();
+        const nw = map.latLngToContainerPoint(bounds.getNorthWest());
+        const se = map.latLngToContainerPoint(bounds.getSouthEast());
+        const mapPxW = se.x - nw.x, mapPxH = se.y - nw.y;
+
+        // Convert pixel coords to PDF mm
+        function pxToPdf(px, py) {
+            return [iX + ((px - nw.x) / mapPxW) * iW, mapY + ((py - nw.y) / mapPxH) * iH];
+        }
+
+        const step = pixelSpacing * Math.SQRT2;
+        const left = nw.x, top = nw.y, right = se.x, bottom = se.y;
+        const ext = Math.max(mapPxW, mapPxH);
+
+        const cMin1 = left + top - ext, cMax1 = right + bottom + ext;
+        const c1Start = Math.floor(cMin1 / step) * step;
+        const cMin2 = top - right - ext, cMax2 = bottom - left + ext;
+        const c2Start = Math.floor(cMin2 / step) * step;
+
+        // Set 1: x + y = c
+        let idx = 0;
+        for (let c = c1Start; c <= cMax1; c += step, idx++) {
+            const ax = left - ext, ay = c - (left - ext);
+            const bx = right + ext, by = c - (right + ext);
+            const pa = pxToPdf(ax, ay), pb = pxToPdf(bx, by);
+            const seg = clipLineToRect(pa[0], pa[1], pb[0], pb[1], iX, mapY, iX + iW, mapY + iH);
+            if (!seg) continue;
+            const major = idx % 5 === 0;
+            pdf.setDrawColor(major ? 200 : 230, major ? 60 : 140, major ? 50 : 130);
+            pdf.setLineWidth(major ? 0.3 : 0.12);
+            pdf.line(seg[0], seg[1], seg[2], seg[3]);
+        }
+        // Set 2: y - x = c
+        idx = 0;
+        for (let c = c2Start; c <= cMax2; c += step, idx++) {
+            const ax = left - ext, ay = c + (left - ext);
+            const bx = right + ext, by = c + (right + ext);
+            const pa = pxToPdf(ax, ay), pb = pxToPdf(bx, by);
+            const seg = clipLineToRect(pa[0], pa[1], pb[0], pb[1], iX, mapY, iX + iW, mapY + iH);
+            if (!seg) continue;
+            const major = idx % 5 === 0;
+            pdf.setDrawColor(major ? 200 : 230, major ? 60 : 140, major ? 50 : 130);
+            pdf.setLineWidth(major ? 0.3 : 0.12);
+            pdf.line(seg[0], seg[1], seg[2], seg[3]);
+        }
+    }
+
     function exportPDF() { document.getElementById('pdf-modal').classList.add('active'); }
     function closePdfModal() { document.getElementById('pdf-modal').classList.remove('active'); }
 
@@ -1984,8 +2087,12 @@
             await new Promise(r => setTimeout(r, 100));
             const toolbar = document.querySelector('.map-toolbar');
             const zoomCtrl = document.querySelector('.leaflet-control-zoom');
+            const gridPaneEl = map.getPane('gridPane');
             toolbar.style.display = 'none';
             if (zoomCtrl) zoomCtrl.style.display = 'none';
+            // Hide grid pane during capture (we draw it vectorially on the PDF)
+            const gridWasVisible = gridVisible;
+            if (gridPaneEl) gridPaneEl.style.display = 'none';
 
             const canvas = await html2canvas(document.getElementById('map'), {
                 useCORS: true, allowTaint: true, scale: 2, logging: false, backgroundColor: '#1a1a2e'
@@ -1993,6 +2100,7 @@
 
             toolbar.style.display = '';
             if (zoomCtrl) zoomCtrl.style.display = '';
+            if (gridPaneEl) gridPaneEl.style.display = '';
 
             const { jsPDF } = window.jspdf;
             const pdf = new jsPDF({ orientation, unit: 'mm', format });
@@ -2018,6 +2126,11 @@
 
             pdf.setDrawColor(42, 42, 74); pdf.setLineWidth(0.5); pdf.rect(iX, mapY, iW, iH, 'S');
             pdf.addImage(canvas.toDataURL('image/png'), 'PNG', iX, mapY, iW, iH);
+
+            // ── Draw grid vectorially on PDF ──
+            if (gridWasVisible) {
+                drawGridOnPdf(pdf, iX, mapY, iW, iH);
+            }
 
             const ctr = map.getCenter(); const z = map.getZoom();
             const mpp = 156543.03392 * Math.cos(ctr.lat * Math.PI / 180) / Math.pow(2, z);
