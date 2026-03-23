@@ -2077,6 +2077,85 @@
         }
     }
 
+    function drawElementsOnPdf(pdf, iX, mapY, iW, iH) {
+        const bounds = map.getBounds();
+        const nw = map.latLngToContainerPoint(bounds.getNorthWest());
+        const se = map.latLngToContainerPoint(bounds.getSouthEast());
+        const mapPxW = se.x - nw.x, mapPxH = se.y - nw.y;
+
+        function pxToPdfX(px) { return iX + ((px - nw.x) / mapPxW) * iW; }
+        function pxToPdfY(py) { return mapY + ((py - nw.y) / mapPxH) * iH; }
+
+        // Helper: rotate point (x,y) around (cx,cy) by angle in degrees
+        function rotatePoint(x, y, cx, cy, angleDeg) {
+            const rad = angleDeg * Math.PI / 180;
+            const cos = Math.cos(rad), sin = Math.sin(rad);
+            const dx = x - cx, dy = y - cy;
+            return [cx + dx * cos - dy * sin, cy + dx * sin + dy * cos];
+        }
+
+        placedElements.forEach(el => {
+            const elBounds = getElementBounds(el);
+            const swPx = map.latLngToContainerPoint(L.latLng(elBounds[0][0], elBounds[0][1]));
+            const nePx = map.latLngToContainerPoint(L.latLng(elBounds[1][0], elBounds[1][1]));
+            const centerPx = map.latLngToContainerPoint(L.latLng(el.lat, el.lng));
+
+            const x1 = pxToPdfX(Math.min(swPx.x, nePx.x));
+            const y1 = pxToPdfY(Math.min(swPx.y, nePx.y));
+            const x2 = pxToPdfX(Math.max(swPx.x, nePx.x));
+            const y2 = pxToPdfY(Math.max(swPx.y, nePx.y));
+            const cx = pxToPdfX(centerPx.x);
+            const cy = pxToPdfY(centerPx.y);
+
+            // 4 corners of the rectangle, rotated around center
+            const corners = [
+                rotatePoint(x1, y1, cx, cy, el.rotation),
+                rotatePoint(x2, y1, cx, cy, el.rotation),
+                rotatePoint(x2, y2, cx, cy, el.rotation),
+                rotatePoint(x1, y2, cx, cy, el.rotation)
+            ];
+
+            const hex = el.color;
+            const r = parseInt(hex.slice(1, 3), 16);
+            const g = parseInt(hex.slice(3, 5), 16);
+            const b = parseInt(hex.slice(5, 7), 16);
+
+            // Draw filled polygon
+            pdf.setFillColor(r, g, b);
+            pdf.setDrawColor(r, g, b);
+            pdf.setLineWidth(0.4);
+
+            // Use triangle decomposition for fill (jsPDF triangle method)
+            // Actually use lines() which supports filled polygons
+            const startX = corners[0][0], startY = corners[0][1];
+            const linesArr = [];
+            for (let i = 1; i < corners.length; i++) {
+                linesArr.push([corners[i][0] - corners[i-1][0], corners[i][1] - corners[i-1][1]]);
+            }
+            linesArr.push([corners[0][0] - corners[3][0], corners[0][1] - corners[3][1]]);
+
+            // Fill with semi-transparency (simulate with lighter color)
+            const op = el.opacity;
+            const bgR = 240, bgG = 240, bgB = 240; // approximate map background
+            pdf.setFillColor(
+                Math.round(r * op + bgR * (1 - op)),
+                Math.round(g * op + bgG * (1 - op)),
+                Math.round(b * op + bgB * (1 - op))
+            );
+            pdf.lines(linesArr, startX, startY, [1, 1], 'F', true);
+
+            // Border
+            pdf.setDrawColor(r, g, b);
+            pdf.lines(linesArr, startX, startY, [1, 1], 'S', true);
+
+            // Label
+            const fontSize = Math.max(3, Math.min(6, (x2 - x1) * 0.6));
+            pdf.setFontSize(fontSize);
+            pdf.setTextColor(255, 255, 255);
+            pdf.text(el.name, cx, cy + fontSize * 0.15, { align: 'center' });
+        });
+    }
+
     function exportPDF() { document.getElementById('pdf-modal').classList.add('active'); }
     function closePdfModal() { document.getElementById('pdf-modal').classList.remove('active'); }
 
@@ -2136,6 +2215,12 @@
             const gridWasVisible = gridVisible;
             if (gridPaneEl) gridPaneEl.style.display = 'none';
 
+            // Hide element overlays during capture (we draw them vectorially)
+            const overlayPane = map.getPane('overlayPane');
+            const markerPane = map.getPane('markerPane');
+            if (overlayPane) overlayPane.style.display = 'none';
+            if (markerPane) markerPane.style.display = 'none';
+
             const canvas = await html2canvas(document.getElementById('map'), {
                 useCORS: true, allowTaint: true, scale: 2, logging: false, backgroundColor: '#1a1a2e'
             });
@@ -2143,6 +2228,8 @@
             toolbar.style.display = '';
             if (zoomCtrl) zoomCtrl.style.display = '';
             if (gridPaneEl) gridPaneEl.style.display = '';
+            if (overlayPane) overlayPane.style.display = '';
+            if (markerPane) markerPane.style.display = '';
 
             const { jsPDF } = window.jspdf;
             const pdf = new jsPDF({ orientation, unit: 'mm', format });
@@ -2173,6 +2260,9 @@
             if (gridWasVisible) {
                 drawGridOnPdf(pdf, iX, mapY, iW, iH);
             }
+
+            // ── Draw elements vectorially on PDF ──
+            drawElementsOnPdf(pdf, iX, mapY, iW, iH);
 
             const ctr = map.getCenter(); const z = map.getZoom();
             const mpp = 156543.03392 * Math.cos(ctr.lat * Math.PI / 180) / Math.pow(2, z);
