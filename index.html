@@ -880,6 +880,14 @@
     let measureTempMarker = null;
     let placementItem = null;
 
+    // Barrier draw mode
+    let barrierDrawMode = false;
+    let barrierDrawItem = null;
+    let barrierDrawPoints = [];
+    let barrierDrawPreviewLine = null;
+    let barrierDrawTempLine = null;
+    let barrierDrawPlacedIds = [];
+
     // Touch drag state
     let touchDragItem = null;
     let touchGhost = null;
@@ -1205,10 +1213,25 @@
     // Map events
     map.on('click', (e) => {
         if (measureMode) { L.DomEvent.stopPropagation(e); addMeasurePoint(e.latlng); return; }
+        if (barrierDrawMode) { L.DomEvent.stopPropagation(e); addBarrierPoint(e.latlng); return; }
         if (!placementItem) deselectAll();
     });
-    map.on('contextmenu', (e) => { if (measureMode) { L.DomEvent.preventDefault(e); toggleMeasureMode(); } });
+    map.on('dblclick', (e) => {
+        if (barrierDrawMode) { L.DomEvent.stopPropagation(e); L.DomEvent.preventDefault(e); stopBarrierDraw(true); return; }
+    });
+    map.on('contextmenu', (e) => {
+        if (measureMode) { L.DomEvent.preventDefault(e); toggleMeasureMode(); }
+        if (barrierDrawMode) { L.DomEvent.preventDefault(e); stopBarrierDraw(true); }
+    });
     map.on('mousemove', (e) => {
+        // Barrier draw temp line
+        if (barrierDrawMode && barrierDrawPoints.length > 0) {
+            const last = barrierDrawPoints[barrierDrawPoints.length - 1];
+            if (barrierDrawTempLine) map.removeLayer(barrierDrawTempLine);
+            barrierDrawTempLine = L.polyline([last, e.latlng], {
+                color: '#e74c3c', weight: 2, dashArray: '4 4', opacity: 0.4, interactive: false
+            }).addTo(map);
+        }
         if (!measureMode || measurePoints.length === 0) return;
         const last = measurePoints[measurePoints.length - 1];
         if (measureTempLine) map.removeLayer(measureTempLine);
@@ -1222,6 +1245,115 @@
         }).setLatLng([(last.lat + e.latlng.lat) / 2, (last.lng + e.latlng.lng) / 2])
           .setContent(formatDistance(dist)).addTo(map);
     });
+
+    // ═══════════════════════════════════════════
+    //  BARRIER LINE-DRAW MODE
+    // ═══════════════════════════════════════════
+
+    function isBarrierItem(item) {
+        return item && item.id && item.id.startsWith('barriere');
+    }
+
+    function startBarrierDraw(item) {
+        stopBarrierDraw(false);
+        barrierDrawMode = true;
+        barrierDrawItem = item;
+        barrierDrawPoints = [];
+        barrierDrawPlacedIds = [];
+        document.getElementById('map').classList.add('placement-mode');
+        updateMeasureInfo(`Cliquez pour tracer la ligne de barrières (${item.name}). Double-clic ou Echap pour terminer.`);
+    }
+
+    function stopBarrierDraw(doSave = true) {
+        barrierDrawMode = false;
+        barrierDrawItem = null;
+        barrierDrawPoints = [];
+        barrierDrawPlacedIds = [];
+        if (barrierDrawPreviewLine) { map.removeLayer(barrierDrawPreviewLine); barrierDrawPreviewLine = null; }
+        if (barrierDrawTempLine) { map.removeLayer(barrierDrawTempLine); barrierDrawTempLine = null; }
+        document.getElementById('map').classList.remove('placement-mode');
+        hideMeasureInfo();
+        if (doSave) saveUndo();
+    }
+
+    function addBarrierPoint(latlng) {
+        if (!barrierDrawMode || !barrierDrawItem) return;
+        if (snapEnabled) latlng = snapToGrid(latlng);
+        barrierDrawPoints.push(latlng);
+
+        if (barrierDrawPoints.length === 1) {
+            updateMeasureInfo(`Point de départ posé. Cliquez pour tracer. Double-clic ou Echap pour terminer.`);
+            // Show preview polyline
+            barrierDrawPreviewLine = L.polyline([latlng], {
+                color: '#e74c3c', weight: 2, dashArray: '6 4', opacity: 0.7, interactive: false
+            }).addTo(map);
+            return;
+        }
+
+        // Place barriers along the segment from previous point to this point
+        const prev = barrierDrawPoints[barrierDrawPoints.length - 2];
+        const curr = latlng;
+        placeBarriersAlongSegment(prev, curr);
+
+        // Update preview line
+        if (barrierDrawPreviewLine) {
+            barrierDrawPreviewLine.addLatLng(curr);
+        }
+
+        const totalDist = computeBarrierTotalDistance();
+        const count = barrierDrawPlacedIds.length;
+        updateMeasureInfo(`${count} barrières placées (${formatDistance(totalDist)}). Cliquez pour continuer. Double-clic ou Echap pour terminer.`);
+    }
+
+    function computeBarrierTotalDistance() {
+        let total = 0;
+        for (let i = 1; i < barrierDrawPoints.length; i++) {
+            total += distanceBetween(barrierDrawPoints[i-1], barrierDrawPoints[i]);
+        }
+        return total;
+    }
+
+    function placeBarriersAlongSegment(from, to) {
+        const item = barrierDrawItem;
+        const segDist = distanceBetween(from, to);
+        const barrierLen = item.width; // barrier length in meters
+        if (segDist < barrierLen * 0.3) return; // too short
+
+        const nBarriers = Math.floor(segDist / barrierLen);
+        if (nBarriers < 1) return;
+
+        // Direction angle in degrees (for rotation)
+        const fromPx = map.latLngToContainerPoint(from);
+        const toPx = map.latLngToContainerPoint(to);
+        const dx = toPx.x - fromPx.x;
+        const dy = toPx.y - fromPx.y;
+        let angleDeg = Math.atan2(dx, -dy) * 180 / Math.PI;
+        if (angleDeg < 0) angleDeg += 360;
+
+        // Fraction steps along the segment
+        for (let i = 0; i < nBarriers; i++) {
+            const t = (i + 0.5) * barrierLen / segDist;
+            if (t > 1) break;
+            const lat = from.lat + (to.lat - from.lat) * t;
+            const lng = from.lng + (to.lng - from.lng) * t;
+            const pos = L.latLng(lat, lng);
+
+            const id = nextId++;
+            const data = {
+                id, typeId: item.id,
+                name: item.name, icon: item.icon,
+                width: item.width, height: item.height,
+                color: item.color, opacity: 0.6,
+                rotation: Math.round(angleDeg) % 360,
+                lat: pos.lat, lng: pos.lng,
+                notes: '', layer: null, labelMarker: null
+            };
+            createMapElement(data);
+            placedElements.push(data);
+            barrierDrawPlacedIds.push(id);
+        }
+        refreshElementsList();
+    }
 
     // ═══════════════════════════════════════════
     //  BUILD LIBRARY UI
@@ -1265,7 +1397,11 @@
                 // Click-to-place (both mobile & desktop)
                 div.addEventListener('click', (e) => {
                     if (e.target.closest('.library-item')) {
-                        startPlacementMode(item);
+                        if (isBarrierItem(item)) {
+                            startBarrierDraw(item);
+                        } else {
+                            startPlacementMode(item);
+                        }
                         if (isMobile()) closeSidebar();
                     }
                 });
@@ -2313,6 +2449,7 @@
         if (e.ctrlKey && e.key === 'y') { e.preventDefault(); redoAction(); }
 
         if (e.key === 'Escape') {
+            if (barrierDrawMode) { stopBarrierDraw(true); return; }
             if (measureMode) { toggleMeasureMode(); return; }
             deselectAll();
             if (placementItem) { document.getElementById('map').classList.remove('placement-mode'); placementItem = null; hideMeasureInfo(); }
