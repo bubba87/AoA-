@@ -1327,7 +1327,8 @@
         const toPx = map.latLngToContainerPoint(to);
         const dx = toPx.x - fromPx.x;
         const dy = toPx.y - fromPx.y;
-        let angleDeg = Math.atan2(dx, -dy) * 180 / Math.PI;
+        // atan2(dx,-dy) gives angle from north CW; subtract 90 so barrier's long axis (width) aligns with line
+        let angleDeg = Math.atan2(dx, -dy) * 180 / Math.PI - 90;
         if (angleDeg < 0) angleDeg += 360;
 
         // Fraction steps along the segment
